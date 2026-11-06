@@ -1,0 +1,6 @@
+{
+  "id": "sample", "name": "Mock API · 200 workers", "created_at": 0, "updated_at": 0,
+  "request": { "method": "GET", "url": "http://127.0.0.1:8787/api/items", "headers": [{ "name": "Accept", "value": "application/json", "enabled": true }], "body": null, "bearer": null },
+  "load": { "concurrency": 200, "stop": { "kind": "duration", "secs": 20 }, "rps_cap": null, "ramp_up_secs": 5,
+            "timeout_ms": 10000, "success_range": { "min": 200, "max": 399 }, "follow_redirects": true, "allow_invalid_certs": false }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: Toad's own commands, event listening, and the confirm/message/save dialogs. No direct filesystem access from the webview; exports are written by Rust to a path the save dialog granted.",
+  "windows": ["main"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "dialog:allow-confirm",
+    "dialog:allow-message",
+    "dialog:allow-save",
+    "allow-check-target",
+    "allow-approve-host",
+    "allow-start-run",
+    "allow-stop-run",
+    "allow-current-run",
+    "allow-list-runs",
+    "allow-get-run",
+    "allow-delete-run",
+    "allow-export-run",
+    "allow-list-tests",
+    "allow-save-test",
+    "allow-duplicate-test",
+    "allow-delete-test",
+    "allow-get-settings",
+    "allow-save-settings"
+  ]
+}
