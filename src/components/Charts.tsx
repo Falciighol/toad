@@ -2,17 +2,19 @@ import { memo, useEffect, useState } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ChartPoint } from "../lib/series";
 import { fmtRps } from "../lib/format";
+import { CardTitle } from "./ui";
 
-// Validated categorical slots (blue, orange, aqua) + a neutral reference line.
-export const SERIES = ["var(--c-series-1)", "var(--c-series-2)", "var(--c-series-3)"] as const;
+// Series are the one place hue carries data: the accent first, then the hues furthest from it (src/lib/theme.ts).
+// The target is a neutral reference line.
+export const SERIES = ["var(--series1)", "var(--series2)", "var(--series3)"] as const;
 
-const axis = { stroke: "var(--c-text-3)", fontSize: 11, tickLine: false, axisLine: false } as const;
+const axis = { stroke: "var(--text4)", fontSize: 11, fontFamily: "var(--mono)", tickLine: false, axisLine: false } as const;
 const tooltipStyle = {
-  contentStyle: { background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: 6, fontSize: 12, color: "var(--c-text)" },
-  labelStyle: { color: "var(--c-text-2)" },
-  cursor: { stroke: "var(--c-text-3)", strokeWidth: 1 },
+  contentStyle: { background: "var(--panel)", border: "1px solid var(--line2)", borderRadius: 12, boxShadow: "var(--shadow)", fontSize: 12, fontFamily: "var(--mono)", color: "var(--text)" },
+  labelStyle: { color: "var(--text3)" },
+  cursor: { stroke: "var(--line3)", strokeWidth: 1 },
 };
-const legendStyle = { fontSize: 11, color: "var(--c-text-2)" };
+const legendStyle = { fontSize: 12, color: "var(--text3)" };
 const fmtMs = (v: number) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
 const tLabel = (t: unknown) => `t = ${String(t)} s`;
 
@@ -34,11 +36,11 @@ function useStaggeredMount(slot: number, enabled: boolean): boolean {
 function Frame(props: { title: string; children: React.ReactElement; empty: boolean; slot: number }) {
   const ready = useStaggeredMount(props.slot, !props.empty);
   return (
-    <div className="card p-3">
-      <h3 className="mb-2 text-xs font-semibold text-ink-2">{props.title}</h3>
+    <div className="card p-4">
+      <CardTitle className="mb-3">{props.title}</CardTitle>
       <div className="h-44">
         {props.empty || !ready ? (
-          <div className="flex h-full items-center justify-center text-xs text-ink-3">{props.empty ? "Waiting for the first full second…" : ""}</div>
+          <div className="flex h-full items-center justify-center text-small text-text4">{props.empty ? "Waiting for the first full second…" : ""}</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             {props.children}
@@ -53,14 +55,14 @@ export const RpsChart = memo(function RpsChart({ data, showTarget, slot = 0 }: {
   return (
     <Frame title="Throughput (requests / s)" empty={data.length === 0} slot={slot}>
       <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-        <CartesianGrid stroke="var(--c-grid)" vertical={false} />
+        <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(t: number) => `${t}s`} {...axis} />
         <YAxis {...axis} width={52} tickFormatter={(v: number) => fmtRps(v)} />
         <Tooltip {...tooltipStyle} labelFormatter={tLabel} formatter={(v) => fmtRps(Number(v))} />
         {showTarget && <Legend wrapperStyle={legendStyle} iconType="plainline" />}
         <Line name="Achieved" dataKey="rps" stroke={SERIES[0]} strokeWidth={2} dot={false} isAnimationActive={false} />
         {showTarget && (
-          <Line name="Target" dataKey="target" stroke="var(--c-ref)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+          <Line name="Target" dataKey="target" stroke="var(--text4)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} isAnimationActive={false} />
         )}
       </LineChart>
     </Frame>
@@ -72,7 +74,7 @@ export const LatencyChart = memo(function LatencyChart({ data, raw, title, slot 
   return (
     <Frame title={title} empty={data.length === 0} slot={slot}>
       <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-        <CartesianGrid stroke="var(--c-grid)" vertical={false} />
+        <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(t: number) => `${t}s`} {...axis} />
         <YAxis {...axis} width={44} tickFormatter={(v: number) => fmtMs(v)} />
         <Tooltip {...tooltipStyle} labelFormatter={tLabel} formatter={(v) => `${fmtMs(Number(v))} ms`} />
@@ -92,7 +94,7 @@ export const CompareChart = memo(function CompareChart(props: { title: string; d
   return (
     <Frame title={props.title} empty={props.data.length === 0} slot={props.slot ?? 0}>
       <LineChart data={props.data} margin={{ top: 4, right: 8, bottom: 0, left: -8 }}>
-        <CartesianGrid stroke="var(--c-grid)" vertical={false} />
+        <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickFormatter={(t: number) => `${t}s`} {...axis} />
         <YAxis {...axis} width={56} tickFormatter={(v: number) => (props.unit === "rps" ? fmtRps(v) : fmtMs(v))} />
         <Tooltip {...tooltipStyle} labelFormatter={tLabel} formatter={(v) => fmt(Number(v))} />

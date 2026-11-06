@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { BodyKind, Header, Method, RequestSpec } from "../bindings";
 import { isSensitiveHeader, validateRequest } from "../lib/validate";
-import { Field, Section, Segmented } from "./ui";
+import { Field, Icon, Section, Segmented } from "./ui";
 
 const METHODS: Method[] = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
@@ -16,7 +16,7 @@ type Props = {
 function SecretInput(props: { value: string; onChange: (v: string) => void; placeholder?: string; id?: string; label: string; disabled?: boolean }) {
   const [shown, setShown] = useState(false);
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1.5">
       <input
         id={props.id}
         type={shown ? "text" : "password"}
@@ -29,7 +29,7 @@ function SecretInput(props: { value: string; onChange: (v: string) => void; plac
         disabled={props.disabled}
         onChange={(e) => props.onChange(e.target.value)}
       />
-      <button type="button" className="btn px-2 text-xs" onClick={() => setShown((s) => !s)} aria-label={shown ? `Hide ${props.label}` : `Show ${props.label}`}>
+      <button type="button" className="btn w-14" disabled={props.disabled} onClick={() => setShown((s) => !s)} aria-label={shown ? `Hide ${props.label}` : `Show ${props.label}`}>
         {shown ? "Hide" : "Show"}
       </button>
     </div>
@@ -64,7 +64,7 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
             <div className="flex gap-1.5">
               <select
                 aria-label="Method"
-                className="input w-28 font-mono font-semibold"
+                className="input w-26! shrink-0 font-mono font-semibold"
                 value={value.method}
                 onChange={(e) => set({ method: e.target.value as Method })}
               >
@@ -76,7 +76,7 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
                 id={id}
                 className="input font-mono"
                 spellCheck={false}
-                placeholder="http://localhost:8080/api"
+                placeholder="https://api.example.com/users"
                 value={value.url}
                 aria-invalid={!!err("request.url") || undefined}
                 onChange={(e) => set({ url: e.target.value })}
@@ -87,17 +87,17 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
         </Field>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
+          <div className="mb-1.5 flex items-center justify-between">
             <span className="label mb-0">Headers</span>
             <button
               type="button"
-              className="btn px-2 py-0.5 text-xs"
+              className="btn btn-ghost btn-sm -my-1"
               onClick={() => set({ headers: [...value.headers, { name: "", value: "", enabled: true }] })}
             >
-              + Add header
+              <Icon name="plus" className="size-3" /> Add header
             </button>
           </div>
-          {value.headers.length === 0 && <p className="text-xs text-ink-3">No headers.</p>}
+          {value.headers.length === 0 && <p className="text-small text-text4">No custom headers.</p>}
           <div className="space-y-1.5">
             {value.headers.map((h, i) => {
               const key = `request.headers.${i}`;
@@ -108,13 +108,13 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
                     <input
                       type="checkbox"
                       aria-label={`Enable header ${i + 1}`}
-                      className="size-3.5 accent-[var(--c-accent)]"
+                      className="size-3.5 shrink-0"
                       checked={h.enabled}
                       onChange={(e) => setHeader(i, { enabled: e.target.checked })}
                     />
                     <input
                       className="input w-2/5 font-mono"
-                      placeholder="Name"
+                      placeholder="Header name"
                       aria-label={`Header ${i + 1} name`}
                       spellCheck={false}
                       value={h.name}
@@ -124,11 +124,11 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
                     />
                     <div className="flex-1">
                       {sensitive ? (
-                        <SecretInput label={`Header ${i + 1} value`} value={h.value} onChange={(v) => setHeader(i, { value: v })} placeholder="Value" />
+                        <SecretInput label={`Header ${i + 1} value`} value={h.value} onChange={(v) => setHeader(i, { value: v })} placeholder="Header value" />
                       ) : (
                         <input
                           className="input font-mono"
-                          placeholder="Value"
+                          placeholder="Header value"
                           aria-label={`Header ${i + 1} value`}
                           spellCheck={false}
                           value={h.value}
@@ -138,15 +138,16 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
                     </div>
                     <button
                       type="button"
-                      className="btn px-2 text-ink-3"
+                      className="btn btn-ghost w-8 px-0"
                       aria-label={`Remove header ${i + 1}`}
+                      title="Remove header"
                       onClick={() => set({ headers: value.headers.filter((_, j) => j !== i) })}
                     >
-                      ×
+                      <Icon name="x" className="size-3.5" />
                     </button>
                   </div>
                   {err(key) && (
-                    <p role="alert" className="mt-1 ml-5 text-xs text-critical">
+                    <p role="alert" className="mt-1.5 ml-5 text-small text-danger">
                       {err(key)}
                     </p>
                   )}
@@ -158,27 +159,27 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
 
         <Field
           label="Bearer token"
+          optional
           error={err("request.bearer")}
-          hint={<>Sent as <code>Authorization: Bearer …</code>. Saved tests store it in plain text on this machine.</>}
+          hint={<>Sent as an <code>Authorization: Bearer</code> header. Saved tests keep it in plain text on this machine.</>}
         >
           {(id) => (
             <SecretInput
               id={id}
               label="Bearer token"
               value={value.bearer ?? ""}
-              placeholder="Optional"
               onChange={(v) => set({ bearer: v === "" ? null : v })}
             />
           )}
         </Field>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
+          <div className="mb-1.5 flex items-center justify-between">
             <span className="label mb-0">Body</span>
             <div className="flex items-center gap-2">
               {bodyKind === "json" && (
-                <button type="button" className="btn px-2 py-0.5 text-xs" onClick={formatJson}>
-                  Format
+                <button type="button" className="btn btn-ghost btn-sm" onClick={formatJson} title="Re-indent the JSON body">
+                  Format JSON
                 </button>
               )}
               <Segmented
@@ -197,20 +198,22 @@ export function RequestForm({ value, onChange, showAllErrors = false, disabled =
             <>
               <textarea
                 aria-label="Request body"
-                className="input h-28 resize-y font-mono text-xs"
+                className="input h-28 resize-y font-mono text-small"
                 spellCheck={false}
                 value={value.body.content}
-                placeholder={value.body.kind === "json" ? '{ "key": "value" }' : "Raw text body"}
+                placeholder={value.body.kind === "json" ? '{ "key": "value" }' : "Sent exactly as typed"}
                 aria-invalid={!!err("request.body") || undefined}
                 onChange={(e) => set({ body: { kind: value.body!.kind, content: e.target.value } })}
                 onBlur={() => touch("request.body")}
               />
               {err("request.body") ? (
-                <p role="alert" className="mt-1 text-xs text-critical">
+                <p role="alert" className="mt-1.5 text-small text-danger">
                   {err("request.body")}
                 </p>
               ) : value.body.kind === "json" ? (
-                <p className="mt-1 text-xs text-ink-3">Content-Type: application/json is added unless you set one.</p>
+                <p className="mt-1.5 text-small text-text3">
+                  Adds <code>Content-Type: application/json</code> unless a header sets it.
+                </p>
               ) : null}
             </>
           )}

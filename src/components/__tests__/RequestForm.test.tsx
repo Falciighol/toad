@@ -25,13 +25,13 @@ describe("RequestForm validation", () => {
     await user.type(url, "not a url");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument(); // not before blur
     await user.tab();
-    expect(screen.getByRole("alert")).toHaveTextContent("Invalid URL");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a full URL");
     expect(url).toHaveAttribute("aria-invalid", "true");
   });
 
   it("requires a URL and an http(s) scheme", async () => {
     const { unmount } = render(<Harness initial={{ url: "" }} showAllErrors />);
-    expect(screen.getByRole("alert")).toHaveTextContent("URL is required");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter the URL to test");
     unmount();
     render(<Harness initial={{ url: "ftp://example.com" }} showAllErrors />);
     expect(screen.getByRole("alert")).toHaveTextContent("http:// or https://");
@@ -43,7 +43,7 @@ describe("RequestForm validation", () => {
     const body = screen.getByLabelText("Request body");
     await user.type(body, '{{"a": ');
     await user.tab();
-    expect(screen.getByRole("alert")).toHaveTextContent("Invalid JSON");
+    expect(screen.getByRole("alert")).toHaveTextContent("Not valid JSON");
     await user.clear(body);
     await user.type(body, '{{"a": 1}');
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -52,8 +52,8 @@ describe("RequestForm validation", () => {
   it("requires a header name for enabled headers, ignores disabled ones", async () => {
     const user = userEvent.setup();
     render(<Harness showAllErrors />);
-    await user.click(screen.getByRole("button", { name: "+ Add header" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Header name is required");
+    await user.click(screen.getByRole("button", { name: "Add header" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Name this header");
     await user.click(screen.getByLabelText("Enable header 1"));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

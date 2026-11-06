@@ -40,7 +40,25 @@ export function fmtDuration(ms: number): string {
   return `${m}m ${Math.round(s % 60)}s`;
 }
 
-export const fmtDate = (ms: number) =>
+/** A span in seconds for settings and estimates, e.g. "30 s", "2 min 5 s", "1 h 30 min". */
+export function fmtSecs(secs: number): string {
+  if (!Number.isFinite(secs) || secs < 0) return "–";
+  if (secs < 1) return secs < 0.1 ? "<0.1 s" : `${Number(secs.toFixed(1))} s`;
+  if (secs < 10) return `${Number(secs.toFixed(1))} s`;
+  if (secs < 60) return `${Math.round(secs)} s`;
+  if (secs < 3600) {
+    const total = Math.round(secs);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return s ? `${m} min ${s} s` : `${m} min`;
+  }
+  const total = Math.round(secs / 60);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+export const fmtDate =(ms: number) =>
   new Date(ms).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /** Signed delta and percentage, e.g. "+12.3 ms (+8%)". */

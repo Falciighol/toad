@@ -1,5 +1,6 @@
 import type { ErrorCount, ErrorKind, StatusCount, Warning } from "../bindings";
 import { fmtInt, fmtPct } from "../lib/format";
+import { CardTitle, Icon } from "./ui";
 
 const ERROR_LABEL: Record<ErrorKind, string> = {
   timeout: "Timeout",
@@ -13,28 +14,28 @@ const ERROR_LABEL: Record<ErrorKind, string> = {
 };
 
 function statusTone(code: number): { bar: string; label: string } {
-  if (code < 300) return { bar: "bg-good", label: "2xx" };
-  if (code < 400) return { bar: "bg-[var(--c-series-1)]", label: "3xx" };
+  if (code < 300) return { bar: "bg-success", label: "2xx" };
+  if (code < 400) return { bar: "bg-info", label: "3xx" };
   if (code < 500) return { bar: "bg-warning", label: "4xx" };
-  return { bar: "bg-critical", label: "5xx" };
+  return { bar: "bg-danger-fill", label: "5xx" };
 }
 
 function Rows(props: { rows: { key: string; label: string; count: number; bar: string; tag?: string }[]; total: number; empty: string }) {
-  if (props.rows.length === 0) return <p className="text-xs text-ink-3">{props.empty}</p>;
+  if (props.rows.length === 0) return <p className="text-small text-text4">{props.empty}</p>;
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-2.5">
       {props.rows.map((r) => (
-        <li key={r.key} className="text-xs">
+        <li key={r.key} className="text-body">
           <div className="flex justify-between gap-2">
-            <span className="font-medium text-ink">
+            <span className="font-medium text-text">
               {r.label}
-              {r.tag && <span className="ml-1.5 text-ink-3">{r.tag}</span>}
+              {r.tag && <span className="ml-1.5 text-small text-text4">{r.tag}</span>}
             </span>
-            <span className="tabular text-ink-2">
-              {fmtInt(r.count)} <span className="text-ink-3">· {fmtPct(r.count, props.total)}</span>
+            <span className="tabular font-mono text-small text-text2">
+              {fmtInt(r.count)} <span className="text-text4">· {fmtPct(r.count, props.total)}</span>
             </span>
           </div>
-          <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
+          <div className="mt-1 h-1 overflow-hidden rounded-full bg-raised2">
             <div className={`h-full rounded-full ${r.bar}`} style={{ width: `${Math.max(1, (r.count / Math.max(1, props.total)) * 100)}%` }} />
           </div>
         </li>
@@ -49,18 +50,18 @@ export function StatusBreakdown({ counts }: { counts: StatusCount[] }) {
     .sort((a, b) => b.count - a.count)
     .map((c) => ({ key: String(c.code), label: String(c.code), count: c.count, bar: statusTone(c.code).bar, tag: statusTone(c.code).label }));
   return (
-    <div className="card p-3">
-      <h3 className="mb-2 text-xs font-semibold text-ink-2">Status codes</h3>
+    <div className="card p-4">
+      <CardTitle className="mb-3">Status codes</CardTitle>
       <Rows rows={rows} total={total} empty="No responses yet." />
     </div>
   );
 }
 
 export function ErrorBreakdown({ counts, total }: { counts: ErrorCount[]; total: number }) {
-  const rows = [...counts].sort((a, b) => b.count - a.count).map((e) => ({ key: e.kind, label: ERROR_LABEL[e.kind], count: e.count, bar: "bg-critical" }));
+  const rows = [...counts].sort((a, b) => b.count - a.count).map((e) => ({ key: e.kind, label: ERROR_LABEL[e.kind], count: e.count, bar: "bg-danger-fill" }));
   return (
-    <div className="card p-3">
-      <h3 className="mb-2 text-xs font-semibold text-ink-2">Errors</h3>
+    <div className="card p-4">
+      <CardTitle className="mb-3">Errors</CardTitle>
       <Rows rows={rows} total={total} empty="No errors." />
     </div>
   );
@@ -102,11 +103,11 @@ export function Warnings({ warnings }: { warnings: Warning[] }) {
       {warnings.map((w) => {
         const t = warningText(w);
         return (
-          <div key={w.kind} className="flex gap-2 rounded-lg border border-warning/60 bg-warning/10 px-3 py-2 text-xs">
-            <span aria-hidden className="text-base leading-none">⚠</span>
+          <div key={w.kind} className="flex gap-2.5 rounded-xl bg-warning-soft px-4 py-3">
+            <Icon name="alert" className="mt-px size-4 text-warning" />
             <div>
-              <div className="font-semibold text-ink">{t.title}</div>
-              <div className="text-ink-2">{t.body}</div>
+              <div className="text-body font-semibold text-warning">{t.title}</div>
+              <div className="mt-0.5 text-small text-text2">{t.body}</div>
             </div>
           </div>
         );

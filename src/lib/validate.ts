@@ -11,15 +11,15 @@ const HEADER_VALUE = /^[\t\x20-\x7e\x80-\xff]*$/;
 
 export function validateUrl(raw: string): string | null {
   const url = raw.trim();
-  if (!url) return "URL is required";
+  if (!url) return "Enter the URL to test";
   let u: URL;
   try {
     u = new URL(url);
   } catch {
-    return "Invalid URL";
+    return "Enter a full URL, like https://api.example.com/users";
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") return "URL must start with http:// or https://";
-  if (!u.hostname) return "URL has no host";
+  if (!u.hostname) return "Add a host after the scheme, like https://localhost:8080";
   return null;
 }
 
@@ -30,18 +30,18 @@ export function validateRequest(r: RequestSpec): Errors {
   r.headers.forEach((h, i) => {
     if (!h.enabled) return;
     const key = `request.headers.${i}`;
-    if (!h.name.trim()) e[key] = "Header name is required";
-    else if (!TOKEN.test(h.name.trim())) e[key] = "Invalid header name";
-    else if (!HEADER_VALUE.test(h.value)) e[key] = "Invalid header value";
+    if (!h.name.trim()) e[key] = "Name this header, or untick it to skip it";
+    else if (!TOKEN.test(h.name.trim())) e[key] = "Header names can't contain spaces or : ( ) , ; \" / [ ] { } < > = ? @";
+    else if (!HEADER_VALUE.test(h.value)) e[key] = "Header value has a line break or control character";
   });
   if (r.body?.kind === "json" && r.body.content.trim()) {
     try {
       JSON.parse(r.body.content);
     } catch (err) {
-      e["request.body"] = `Invalid JSON: ${err instanceof Error ? err.message : "parse error"}`;
+      e["request.body"] = `Not valid JSON: ${err instanceof Error ? err.message : "parse error"}`;
     }
   }
-  if (r.bearer && !HEADER_VALUE.test(r.bearer)) e["request.bearer"] = "Token contains invalid characters";
+  if (r.bearer && !HEADER_VALUE.test(r.bearer)) e["request.bearer"] = "Token has a line break or control character";
   return e;
 }
 
@@ -49,34 +49,34 @@ const int = (n: number) => Number.isFinite(n) && Number.isInteger(n);
 
 export function validateLoad(l: LoadSpec, limits: Limits): Errors {
   const e: Errors = {};
-  if (!int(l.concurrency) || l.concurrency < 1) e["load.concurrency"] = "Concurrency must be at least 1";
+  if (!int(l.concurrency) || l.concurrency < 1) e["load.concurrency"] = "Use at least 1 worker";
   else if (l.concurrency > limits.max_concurrency)
-    e["load.concurrency"] = `Concurrency is capped at ${limits.max_concurrency} (Settings)`;
+    e["load.concurrency"] = `Use at most ${limits.max_concurrency} workers, or raise the limit in Settings`;
   if (l.stop.kind === "requests") {
-    if (!int(l.stop.count) || l.stop.count < 1) e["load.stop"] = "Request count must be at least 1";
-  } else if (!int(l.stop.secs) || l.stop.secs < 1) e["load.stop"] = "Duration must be at least 1 second";
-  else if (l.stop.secs > 86_400) e["load.stop"] = "Duration must be at most 24 hours";
+    if (!int(l.stop.count) || l.stop.count < 1) e["load.stop"] = "Send at least 1 request";
+  } else if (!int(l.stop.secs) || l.stop.secs < 1) e["load.stop"] = "Run for at least 1 second";
+  else if (l.stop.secs > 86_400) e["load.stop"] = "Run for at most 86400 s (24 hours)";
   if (l.rps_cap !== null) {
-    if (!int(l.rps_cap) || l.rps_cap < 1) e["load.rps_cap"] = "RPS cap must be at least 1";
-    else if (l.rps_cap > limits.max_rps) e["load.rps_cap"] = `RPS is capped at ${limits.max_rps} (Settings)`;
+    if (!int(l.rps_cap) || l.rps_cap < 1) e["load.rps_cap"] = "Set the cap to at least 1 rps, or leave it empty";
+    else if (l.rps_cap > limits.max_rps) e["load.rps_cap"] = `Use at most ${limits.max_rps} rps, or raise the limit in Settings`;
   }
   if (l.ramp_up_secs !== null) {
-    if (!int(l.ramp_up_secs) || l.ramp_up_secs < 0) e["load.ramp_up_secs"] = "Ramp-up must be a whole number of seconds";
-    else if (l.ramp_up_secs > 3600) e["load.ramp_up_secs"] = "Ramp-up must be at most 3600 s";
+    if (!int(l.ramp_up_secs) || l.ramp_up_secs < 0) e["load.ramp_up_secs"] = "Use a whole number of seconds";
+    else if (l.ramp_up_secs > 3600) e["load.ramp_up_secs"] = "Ramp up for at most 3600 s (1 hour)";
     else if (l.stop.kind === "duration" && l.ramp_up_secs > 0 && l.ramp_up_secs >= l.stop.secs)
-      e["load.ramp_up_secs"] = "Ramp-up must be shorter than the duration";
+      e["load.ramp_up_secs"] = "Ramp-up must end before the run does; shorten it or lengthen the duration";
   }
   if (!int(l.timeout_ms) || l.timeout_ms < 1 || l.timeout_ms > 300_000)
-    e["load.timeout_ms"] = "Timeout must be between 1 ms and 300 s";
+    e["load.timeout_ms"] = "Use a timeout from 1 to 300000 ms (5 minutes)";
   const r = l.success_range;
   if (!int(r.min) || !int(r.max) || r.min < 100 || r.max > 599 || r.min > r.max)
-    e["load.success_range"] = "Status range must be within 100–599 and min ≤ max";
+    e["load.success_range"] = "Use codes from 100 to 599, with the first no higher than the second";
   return e;
 }
 
 export function validateConfig(c: TestConfig, limits: Limits): Errors {
   const e: Errors = { ...validateRequest(c.request), ...validateLoad(c.load, limits) };
-  if (!c.name.trim()) e["name"] = "Name is required";
+  if (!c.name.trim()) e["name"] = "Give the test a name";
   return e;
 }
 
