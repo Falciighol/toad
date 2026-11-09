@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { Executor } from "../../bindings";
 import { fmtInt, fmtSecs } from "../../lib/format";
-import { duration, points, unit, type Pt } from "../../lib/profile";
+import { duration, points, unit, unitLong, type Pt } from "../../lib/profile";
 
 const PAD = { l: 44, r: 14, t: 14, b: 26 };
 
@@ -12,6 +12,9 @@ function niceStep(raw: number): number {
   for (const m of [1, 2, 2.5, 5]) if (m * p >= raw) return m * p;
   return 10 * p;
 }
+
+/** Axis labels fit the gutter: per-hour rates reach six digits, so 10,000+ reads "10k". */
+const fmtTick = (v: number) => (v >= 10_000 ? `${Number((v / 1000).toFixed(1))}k` : fmtInt(v));
 
 /** Value axis: about four round steps above the data (plus headroom), starting at 0. */
 function valueAxis(v: number): { max: number; ticks: number[] } {
@@ -135,7 +138,7 @@ export function ProfileChart(props: {
           <g key={v}>
             <line x1={PAD.l} x2={w - PAD.r} y1={y(v)} y2={y(v)} stroke="var(--grid)" />
             <text x={PAD.l - 8} y={y(v) + 4} textAnchor="end" className="fill-text4 font-mono text-[11px]">
-              {fmtInt(v)}
+              {fmtTick(v)}
             </text>
           </g>
         ))}
@@ -145,7 +148,7 @@ export function ProfileChart(props: {
           </text>
         ))}
         <text x={PAD.l} y={10} className="fill-text3 text-[11px]">
-          {u === "VUs" ? "virtual users" : "iterations / s"}
+          {unitLong(e)}
         </text>
         <path d={area} fill="currentColor" opacity={props.achieved ? 0.06 : 0.12} />
         <path d={path(pts)} fill="none" stroke="currentColor" strokeWidth={props.achieved ? 1.5 : 2} strokeDasharray={props.achieved ? "5 4" : undefined} strokeLinejoin="round" />

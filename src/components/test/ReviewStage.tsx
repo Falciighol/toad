@@ -2,10 +2,10 @@ import { useState } from "react";
 import type { HostInfo, Sample, TestConfig, TryResult } from "../../bindings";
 import { estimateTest } from "../../lib/estimate";
 import { findStep, stepLabel } from "../../lib/flow";
-import { fmtInt, fmtLatency, fmtSecs } from "../../lib/format";
+import { fmtInt, fmtLatency, fmtPerTime, fmtSecs } from "../../lib/format";
 import { STAGE_LABEL, stageOf, type Errors, type Stage } from "../../lib/stages";
 import { OUTCOME, SampleView, statusTone } from "../run/SampleView";
-import { Empty, Icon, Kbd, Pill } from "../ui";
+import { Empty, Icon, Kbd, Pill, Spinner } from "../ui";
 import { Block, StageHeader } from "./DataStage";
 
 const mod = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘" : "Ctrl+";
@@ -127,7 +127,7 @@ export function ReviewStage(props: {
             {[
               ["Length", fmtSecs(est.secs)],
               ["Requests", `≈${fmtInt(est.requests)}`],
-              ["Peak rate", `≈${fmtInt(est.peakRps)} rps`],
+              ["Peak rate", `≈${fmtPerTime(est.peakRps)}`],
               ["Peak users", fmtInt(est.peakVus)],
             ].map(([k, v]) => (
               <div key={k}>
@@ -157,8 +157,8 @@ function TryOnce({ config: c, result, trying, onTry }: { config: TestConfig; res
       title="Try once"
       hint="One virtual user walks every scenario once (setup, per-user init, one iteration), capturing every request. Nothing counts toward history."
       aside={
-        <button type="button" className="btn btn-sm" onClick={onTry} disabled={trying}>
-          <Icon name="bolt" className="size-3.5" /> {trying ? "Trying…" : result ? "Try again" : "Try once"}
+        <button type="button" className="btn btn-sm" onClick={onTry} disabled={trying} aria-busy={trying}>
+          {trying ? <Spinner /> : <Icon name="bolt" className="size-3.5" />} {trying ? "Trying…" : result ? "Try again" : "Try once"}
         </button>
       }
     >

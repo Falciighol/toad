@@ -286,13 +286,13 @@ impl Ctx {
                 } else if !dur_ok(sc.executor.duration_secs()) {
                     self.push(&field, "Stages must add up to 1 s – 24 h");
                 }
-                if sc.executor.peak_vus() == 0 || sc.executor.peak_rate() == Some(0) {
+                if sc.executor.peak_vus() == 0 || sc.executor.peak_rate_in_unit().is_some_and(|(r, _)| r == 0) {
                     self.push(&field, "At least one stage needs a target above 0");
                 }
             }
-            Executor::Rate { rate, duration_secs, .. } => {
+            Executor::Rate { rate, rate_unit, duration_secs, .. } => {
                 if *rate == 0 {
-                    self.push(&field, "Start at least 1 iteration per second");
+                    self.push(&field, format!("Start at least 1 iteration per {}", rate_unit.label()));
                 }
                 if !dur_ok(u64::from(*duration_secs)) {
                     self.push(&field, "Run for 1 s to 24 h");
@@ -453,14 +453,15 @@ pub fn validate(c: &TestConfig, limits: Limits) -> Vec<FieldError> {
     for s in &c.teardown {
         x.step(s, &global);
     }
-    let rate: u64 = enabled.iter().filter_map(|s| s.executor.peak_rate()).map(u64::from).sum();
+    let rate: f64 = enabled.iter().filter_map(|s| s.executor.peak_rate()).sum();
     if peak_vus > x.limits.max_concurrency {
         let field = enabled.first().map_or("scenarios".to_string(), |s| format!("scenario:{}.load", s.id));
         x.push(field, format!("Up to {peak_vus} virtual users across scenarios; Settings allow {}", x.limits.max_concurrency));
     }
-    if rate > u64::from(x.limits.max_rps) {
+    if rate > f64::from(x.limits.max_rps) {
         let field = enabled.iter().find(|s| s.executor.is_open()).map_or("scenarios".to_string(), |s| format!("scenario:{}.load", s.id));
-        x.push(field, format!("Up to {rate} iterations/s across scenarios; Settings allow {} per second", x.limits.max_rps));
+        let shown = if rate.fract() == 0.0 { format!("{rate}") } else { format!("{rate:.1}") };
+        x.push(field, format!("Up to {shown} iterations/s across scenarios; Settings allow {} per second", x.limits.max_rps));
     }
 
     // Thresholds.
@@ -558,7 +559,7 @@ mod tests {
         let mut c = TestConfig::blank("t", "http://localhost/");
         c.scenarios[0].executor = Executor::Vus { vus: 2000, duration_secs: 10 };
         assert_eq!(fields(&c), ["scenario:s1.load"]);
-        c.scenarios[0].executor = Executor::RampingRate { start: 0, stages: vec![], max_vus: 10 };
+        c.scenarios[0].executor = Executor::RampingRate { start: 0, stages: vec![], rate_unit: RateUnit::Second, max_vus: 10 };
         assert!(fields(&c).contains(&"scenario:s1.load".to_string()));
         c.scenarios[0].enabled = false;
         assert!(fields(&c).contains(&"scenarios".to_string()));

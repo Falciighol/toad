@@ -3,7 +3,7 @@
 // so they assume a response time and say so.
 import type { FlowItem, Scenario, TestConfig, ThinkTime } from "../bindings";
 import { itemSteps } from "./flow";
-import { area, duration, isOpen, maxVus, peak, points } from "./profile";
+import { area, duration, isOpen, maxVus, peakPerSec, points } from "./profile";
 
 /** Response time assumed for estimates that depend on the server's speed. */
 export const ASSUMED_LATENCY_MS = 50;
@@ -51,8 +51,8 @@ export function estimateScenario(sc: Scenario): ScenarioEstimate {
   const base = { id: sc.id, name: sc.name, perIteration: per };
   if (isOpen(e)) {
     const iterations = Math.round(area(e));
-    const needed = Math.ceil((peak(e) * itMs) / 1000 * 1.2);
-    return { ...base, secs: duration(e), iterations, requests: iterations * per, peakRps: peak(e) * per, peakVus: maxVus(e), latencyBound: false, vusNeeded: needed > maxVus(e) ? needed : null };
+    const needed = Math.ceil((peakPerSec(e) * itMs) / 1000 * 1.2);
+    return { ...base, secs: duration(e), iterations, requests: iterations * per, peakRps: peakPerSec(e) * per, peakVus: maxVus(e), latencyBound: false, vusNeeded: needed > maxVus(e) ? needed : null };
   }
   if (e.kind === "iterations") {
     const secs = Math.min(e.max_duration_secs, (e.iterations * itMs) / 1000 / Math.max(1, e.vus));

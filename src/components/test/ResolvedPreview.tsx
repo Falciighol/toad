@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { KeyValue, RequestStep, TestConfig } from "../../bindings";
 import { extractedBefore } from "../../lib/flow";
 import { preview, type Resolved } from "../../lib/template";
@@ -34,7 +34,7 @@ function Line({ parts }: { parts: Resolved[] }) {
  * filled in. Values from earlier steps come from the last Try once; until then they're
  * shown pending, with where they come from.
  */
-export function ResolvedPreview({ config, step, tryVars }: { config: TestConfig; step: RequestStep; tryVars: KeyValue[] | null }) {
+export function ResolvedPreview({ config, step, tryVars, title }: { config: TestConfig; step: RequestStep; tryVars: KeyValue[] | null; title?: ReactNode }) {
   const [seed, setSeed] = useState(0);
   const ctx = useMemo(() => {
     const vars = new Map<string, string>();
@@ -97,7 +97,7 @@ export function ResolvedPreview({ config, step, tryVars }: { config: TestConfig;
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line px-4">
-        <span className="text-small font-medium text-text2">Resolved request</span>
+        {title ?? <span className="text-small font-medium text-text2">Resolved request</span>}
         <span className="text-micro text-text4">VU 1 · iteration 1</span>
         {unresolved.length > 0 && <span className="text-micro text-warning">{unresolved.length} pending</span>}
         <span className="flex-1" />

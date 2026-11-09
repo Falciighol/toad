@@ -4,7 +4,7 @@ import type { ExportFormat, OutcomeCounts, RunSummary, Sample, Scenario, Snapsho
 import { api, errorMessage } from "../../lib/api";
 import { allSteps, findStep, itemSteps, stepLabel } from "../../lib/flow";
 import { fmtBytes, fmtDate, fmtDuration, fmtInt, fmtLatency, fmtPct, fmtRps } from "../../lib/format";
-import { isOpen, points, span } from "../../lib/profile";
+import { fmtLevel, isOpen, points, rateUnitSecs, span, toRateUnit } from "../../lib/profile";
 import type { ChartPoint } from "../../lib/series";
 import { seriesFromSummary } from "../../lib/series";
 import { warningText } from "../Breakdowns";
@@ -353,8 +353,12 @@ function Overview({ summary: s, live, verdict, onEndpoint }: { summary: RunSumma
     return out.slice(0, 12);
   }, [enabled, verdict]);
   const one = enabled.length === 1 ? enabled[0]! : null;
-  /** What a scenario's profile achieved: busy VUs (closed model) or iterations started per second (open model). */
+  /** What a scenario's profile achieved: busy VUs (closed model) or iterations started (open model, in the plan's rate unit). */
   const achievedFor = (sc: Scenario): { t: number; v: number }[] | undefined => {
+    const perSec = achievedPerSecond(sc);
+    return perSec && isOpen(sc.executor) ? toRateUnit(sc.executor, perSec) : perSec;
+  };
+  const achievedPerSecond = (sc: Scenario): { t: number; v: number }[] | undefined => {
     const open = isOpen(sc.executor);
     const recorded = s?.scenarios?.find((x) => x.id === sc.id)?.series;
     if (recorded?.length) return recorded.map((p) => ({ t: p.t_s, v: open ? p.iterations : p.vus }));
@@ -428,7 +432,7 @@ function Overview({ summary: s, live, verdict, onEndpoint }: { summary: RunSumma
                     <span className={`size-2 rounded-full ${["bg-series1", "bg-series2", "bg-series3"][i % 3]}`} />
                     <span className="font-medium">{sc.name}</span>
                     <span className="tabular font-mono text-text3">
-                      {sum ? `${fmtInt(sum.iterations)} iterations · peak ${fmtInt(sum.peak_vus)} VUs${sum.dropped ? ` · ${fmtInt(sum.dropped)} dropped` : ""}` : live1 ? `${fmtInt(live1.vus)} busy · ${fmtInt(live1.iterations)} iterations · target ${fmtInt(live1.target)}` : ""}
+                      {sum ? `${fmtInt(sum.iterations)} iterations · peak ${fmtInt(sum.peak_vus)} VUs${sum.dropped ? ` · ${fmtInt(sum.dropped)} dropped` : ""}` : live1 ? `${fmtInt(live1.vus)} busy · ${fmtInt(live1.iterations)} iterations · target ${live1.target === null ? "–" : fmtLevel(sc.executor, live1.target * rateUnitSecs(sc.executor))}` : ""}
                     </span>
                   </div>
                   <ProfileChart executor={sc.executor} offset={sc.start_offset_secs} timeMax={Math.max(...enabled.map((x) => span(x)[1]))} achieved={achievedFor(sc)} now={now} height={130} label={`${sc.name}: planned vs achieved`} />

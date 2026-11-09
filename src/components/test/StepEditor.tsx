@@ -5,7 +5,7 @@ import type { Errors } from "../../lib/stages";
 import type { Name } from "../../lib/template";
 import { isSensitiveHeader, jsonError } from "../../lib/validate";
 import { TemplateInput } from "../TemplateInput";
-import { Field, Icon, IconButton, Kbd, NumberInput, Pill, Segmented, Select, Tabs, Toggle } from "../ui";
+import { Field, Icon, IconButton, Kbd, NumberInput, Pill, Segmented, Select, Spinner, Tabs, Toggle } from "../ui";
 import { KeyValueTable } from "./KeyValueTable";
 import { RunIfEditor, runIfText } from "./RunIfEditor";
 
@@ -76,8 +76,8 @@ export function StepEditor(props: {
             </button>
           )}
           <span className="flex-1" />
-          <button type="button" className="btn btn-sm" onClick={props.onSend} disabled={props.sending} title="Send this request once with the current environment (⌘⇧S)">
-            <Icon name="bolt" className="size-3.5" /> {props.sending ? "Sending…" : "Send once"}
+          <button type="button" className="btn btn-sm" onClick={props.onSend} disabled={props.sending} aria-busy={props.sending} title="Send this request once with the current environment (⌘⇧S)">
+            {props.sending ? <Spinner /> : <Icon name="bolt" className="size-3.5" />} {props.sending ? "Sending…" : "Send once"}
           </button>
         </div>
         <div className="flex gap-1.5">

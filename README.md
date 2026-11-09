@@ -85,6 +85,7 @@ draws it as a profile over time:
   every response, then run the next. The value is constant or follows linear stages
   (ramp up, hold, ramp down). If the target slows down, the request rate drops with it.
 - **Arrival rate** (open model). Iterations start on a schedule, constant or staged,
+  counted per second, minute or hour (durations take seconds, minutes or hours too),
   whatever the target's speed. A shared lock-free scheduler (GCRA, a token bucket of
   size 1) gives every iteration an *intended start time*. The first request of the
   iteration is measured **from that scheduled time**, which corrects for coordinated

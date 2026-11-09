@@ -2,7 +2,7 @@
 import type { FieldError, TestConfig } from "../bindings";
 import { allSteps, stepCount } from "./flow";
 import { fmtInt, fmtSecs } from "./format";
-import { duration, isOpen, maxVus, peak } from "./profile";
+import { duration, fmtLevel, isOpen, maxVus, peak } from "./profile";
 
 export type Stage = "flow" | "data" | "load" | "checks" | "review";
 export const STAGES: Stage[] = ["flow", "data", "load", "checks", "review"];
@@ -61,7 +61,7 @@ export function summary(c: TestConfig, stage: Stage, unconfirmed = 0): string {
       if (!enabled.length) return "No scenario on";
       if (enabled.length === 1) {
         const e = enabled[0]!.executor;
-        const lvl = isOpen(e) ? `${fmtInt(peak(e))} iter/s` : `${fmtInt(maxVus(e))} VUs`;
+        const lvl = fmtLevel(e, isOpen(e) ? peak(e) : maxVus(e));
         return e.kind === "iterations" ? `${fmtInt(e.vus)} VUs · ${fmtInt(e.iterations)} iterations` : `${lvl} · ${fmtSecs(duration(e))}`;
       }
       const vus = enabled.reduce((n, s) => n + maxVus(s.executor), 0);

@@ -141,6 +141,11 @@ export function Icon({ name, className = "size-3.5" }: { name: IconName; classNa
   );
 }
 
+/** Small indeterminate ring, sized like an icon; inherits the text color. */
+export function Spinner({ className = "size-3.5" }: { className?: string }) {
+  return <span aria-hidden className={`inline-block shrink-0 animate-spin rounded-full border-[1.5px] border-current border-t-transparent ${className}`} />;
+}
+
 export function Field(props: {
   label: string;
   /** Marks the field as optional with a quiet tag; required fields carry no marker. */
@@ -206,6 +211,129 @@ export function NumberInput(props: {
         <span className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-small text-text4">{props.suffix}</span>
       )}
     </div>
+  );
+}
+
+/**
+ * A number with its unit picked from a dropdown joined to the input's right edge
+ * ("30 [/min ▾]"). The value is in the selected unit; callers convert.
+ */
+export function UnitNumberInput<U extends string>(props: {
+  id?: string;
+  value: number | string | null;
+  onChange: (raw: string) => void;
+  onBlur?: () => void;
+  unit: U;
+  units: { value: U; label: string; title?: string }[];
+  onUnit: (u: U) => void;
+  min?: number;
+  step?: number | "any";
+  invalid?: boolean;
+  disabled?: boolean;
+  "aria-label"?: string;
+  unitLabel?: string;
+}) {
+  return (
+    <div className="flex min-w-0">
+      <input
+        id={props.id}
+        type="number"
+        inputMode={props.step === "any" ? "decimal" : "numeric"}
+        className="input tabular min-w-0 flex-1 rounded-r-none font-mono"
+        value={props.value ?? ""}
+        min={props.min}
+        step={props.step}
+        disabled={props.disabled}
+        aria-invalid={props.invalid || undefined}
+        aria-label={props["aria-label"]}
+        onBlur={props.onBlur}
+        onChange={(e) => props.onChange(e.target.value.trim())}
+      />
+      <select
+        className="input -ml-px w-auto! shrink-0 rounded-l-none pl-2 text-small text-text2"
+        aria-label={props.unitLabel ?? `${props["aria-label"] ?? "Value"} unit`}
+        value={props.unit}
+        disabled={props.disabled}
+        onChange={(e) => props.onUnit(e.target.value as U)}
+      >
+        {props.units.map((u) => (
+          <option key={u.value} value={u.value} title={u.title}>
+            {u.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export type DurationUnit = "s" | "min" | "h";
+const DURATION_UNITS: { value: DurationUnit; label: string; title: string; secs: number }[] = [
+  { value: "s", label: "s", title: "seconds", secs: 1 },
+  { value: "min", label: "min", title: "minutes", secs: 60 },
+  { value: "h", label: "h", title: "hours", secs: 3600 },
+];
+const unitSecs = (u: DurationUnit) => DURATION_UNITS.find((x) => x.value === u)!.secs;
+/** Shows cleanly in this unit: at most two decimals (90 s → 1.5 min, not 37 s → 0.6167 min). */
+const fitsUnit = (secs: number, u: DurationUnit) => {
+  const x = (secs / unitSecs(u)) * 100;
+  return Math.abs(x - Math.round(x)) < 1e-6;
+};
+/** The largest allowed unit that holds the value exactly: 7200 → h, 90 → s. */
+export function inferDurationUnit(secs: number, allowed: readonly DurationUnit[] = ["s", "min", "h"]): DurationUnit {
+  const fits = [...allowed].reverse().find((u) => secs > 0 && secs % unitSecs(u) === 0);
+  return fits ?? allowed[0] ?? "s";
+}
+
+/**
+ * A length of time stored in whole seconds, entered in seconds, minutes or hours. The unit
+ * starts as the largest that holds the value exactly and then follows the dropdown. Changing
+ * the unit keeps the typed number (30 s → 30 min), like picking the unit for what you typed.
+ */
+export function DurationInput(props: {
+  id?: string;
+  /** Seconds. */
+  value: number;
+  onChange: (secs: number | null) => void;
+  units?: readonly DurationUnit[];
+  /** Seconds. */
+  min?: number;
+  invalid?: boolean;
+  disabled?: boolean;
+  "aria-label"?: string;
+}) {
+  const allowed = props.units ?? (["s", "min", "h"] as const);
+  const [chosen, setChosen] = useState<DurationUnit | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  // While typing, the picked unit holds; afterwards a value it can't show cleanly (a chart drag
+  // to 37 s under "min") falls back to the unit that can.
+  const unit = chosen && allowed.includes(chosen) && (draft !== null || fitsUnit(props.value, chosen)) ? chosen : inferDurationUnit(props.value, allowed);
+  const per = unitSecs(unit);
+  const shown = draft ?? String(Math.round((props.value / per) * 10000) / 10000);
+  return (
+    <UnitNumberInput
+      id={props.id}
+      aria-label={props["aria-label"]}
+      unitLabel={props["aria-label"] ? `${props["aria-label"]} unit` : "Time unit"}
+      value={shown}
+      min={props.min !== undefined ? props.min / per : undefined}
+      step={per === 1 ? 1 : "any"}
+      invalid={props.invalid}
+      disabled={props.disabled}
+      unit={unit}
+      units={DURATION_UNITS.filter((u) => allowed.includes(u.value))}
+      onBlur={() => setDraft(null)}
+      onChange={(raw) => {
+        setDraft(raw);
+        setChosen(unit);
+        props.onChange(raw === "" || !Number.isFinite(Number(raw)) ? null : Math.round(Number(raw) * per));
+      }}
+      onUnit={(u) => {
+        const n = Number(shown);
+        setChosen(u);
+        setDraft(null);
+        if (Number.isFinite(n)) props.onChange(Math.round(n * unitSecs(u)));
+      }}
+    />
   );
 }
 

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Toad follows the Saga design system (../saga/design/saga-design-system): a nearly colorless ground (warm paper in light,
-   true black in dark), one accent (Mint), color only where it means something, and values in mono.
+   a near-black workspace under graphite chrome in dark), one accent (Mint), color only where it means something, and values in mono.
    src/lib/theme.ts computes every color and sets it on :root at startup; these are its first-paint values. */
 
 @font-face {
@@ -22,14 +22,14 @@
 
 :root {
   color-scheme: light;
-  --bg: #f3f1eb;
+  --bg: #edece7;
   --chrome: #fcfaf5;
   --panel: #fcfaf5;
   --raised: rgb(40 32 16 / 0.05);
   --raised2: rgb(40 32 16 / 0.08);
   --seg: #fcfaf5;
-  --line: #e6e4e1;
-  --line2: #d3d2d1;
+  --line: #dcdbd9;
+  --line2: #c3c3c2;
   --line3: #acacac;
   --text: #171a1d;
   --text2: #3a3c3f;
@@ -62,15 +62,15 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg: #000000;
-    --chrome: #000000;
-    --panel: #0e0e10;
-    --raised: rgb(255 255 255 / 0.04);
-    --raised2: rgb(255 255 255 / 0.08);
-    --seg: rgb(255 255 255 / 0.12);
-    --line: rgb(255 255 255 / 0.06);
-    --line2: rgb(255 255 255 / 0.1);
-    --line3: rgb(255 255 255 / 0.16);
+    --bg: #111213;
+    --chrome: #1d1e20;
+    --panel: #1d1e20;
+    --raised: rgb(255 255 255 / 0.05);
+    --raised2: rgb(255 255 255 / 0.09);
+    --seg: rgb(255 255 255 / 0.14);
+    --line: rgb(255 255 255 / 0.11);
+    --line2: rgb(255 255 255 / 0.16);
+    --line3: rgb(255 255 255 / 0.26);
     --text: #f3f1eb;
     --text2: #d3d2d1;
     --text3: #acacac;
@@ -92,9 +92,9 @@
     --series1: #e2854e;
     --series2: #9d92ef;
     --series3: #4facd9;
-    --grid: rgb(255 255 255 / 0.06);
+    --grid: rgb(255 255 255 / 0.07);
     --overlay: rgb(0 0 0 / 0.6);
-    --shadow: 0 18px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04);
+    --shadow: 0 18px 48px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06);
   }
 }
 
@@ -304,9 +304,22 @@ select.input {
 .animate-pop {
   animation: toad-pop 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* A fresh result replacing an old one: fades in so a repeat send visibly lands. */
+@keyframes toad-arrive {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-arrive {
+  animation: toad-arrive 280ms ease-out;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pop,
+  .animate-arrive,
   .animate-pulse {
     animation: none;
   }

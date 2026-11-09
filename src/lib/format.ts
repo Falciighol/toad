@@ -15,6 +15,17 @@ export const fmtInt = (n: number | null | undefined) =>
 export const fmtRps = (n: number | null | undefined) =>
   n === null || n === undefined || !Number.isFinite(n) ? "–" : n >= 100 ? fmtInt(n) : n.toFixed(1);
 
+/**
+ * A per-second rate in the unit that keeps it readable: "12 req/s", "2.5 req/s", "30 req/min",
+ * "4 req/h". Rates set per minute or hour would otherwise round to "0 rps".
+ */
+export function fmtPerTime(perSec: number, noun = "req"): string {
+  if (!Number.isFinite(perSec)) return "–";
+  const [v, u] = perSec >= 1 || perSec === 0 ? [perSec, "s"] : perSec * 60 >= 1 ? [perSec * 60, "min"] : [perSec * 3600, "h"];
+  const n = v >= 100 || Number.isInteger(Math.round(v * 10) / 10) ? fmtInt(v) : v.toFixed(1);
+  return `${n} ${noun}/${u}`;
+}
+
 export function fmtPct(part: number, whole: number): string {
   if (!whole) return "0%";
   const p = (part / whole) * 100;

@@ -1,5 +1,6 @@
 //! Load profiles: how many virtual users run (closed model) or how many iterations start per
-//! second (open model) at time t, as piecewise-linear stages.
+//! second (open model) at time t, as piecewise-linear stages. Open-model rates entered per
+//! minute or hour are converted to per second here, so everything downstream counts seconds.
 //!
 //! The open model is a virtual-schedule limiter (GCRA, a token bucket of size 1): slot `k` is
 //! assigned the send time `t_k` at which the k-th token becomes available. Because every
@@ -7,7 +8,7 @@
 //! which corrects for coordinated omission. If the target stalls, `t_k` stays in the past and
 //! free virtual users start back-to-back until they catch up, exactly like wrk2.
 
-use crate::spec::{Executor, Stage};
+use crate::spec::{Executor, RateUnit, Stage};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Seg {
@@ -67,12 +68,12 @@ impl Profile {
     }
 
     pub fn from_executor(e: &Executor) -> Profile {
-        let stages = |st: &[Stage]| st.iter().map(|s| (f64::from(s.duration_secs), f64::from(s.target))).collect::<Vec<_>>();
+        let stages = |st: &[Stage], u: RateUnit| st.iter().map(|s| (f64::from(s.duration_secs), u.per_second(f64::from(s.target)))).collect::<Vec<_>>();
         match e {
             Executor::Vus { vus, duration_secs } => Profile::constant(f64::from(*vus), f64::from(*duration_secs)),
-            Executor::RampingVus { start, stages: st } => Profile::staged(f64::from(*start), &stages(st)),
-            Executor::Rate { rate, duration_secs, .. } => Profile::constant(f64::from(*rate), f64::from(*duration_secs)),
-            Executor::RampingRate { start, stages: st, .. } => Profile::staged(f64::from(*start), &stages(st)),
+            Executor::RampingVus { start, stages: st } => Profile::staged(f64::from(*start), &stages(st, RateUnit::Second)),
+            Executor::Rate { rate, rate_unit, duration_secs, .. } => Profile::constant(rate_unit.per_second(f64::from(*rate)), f64::from(*duration_secs)),
+            Executor::RampingRate { start, stages: st, rate_unit, .. } => Profile::staged(rate_unit.per_second(f64::from(*start)), &stages(st, *rate_unit)),
             Executor::Iterations { vus, max_duration_secs, .. } => Profile::constant(f64::from(*vus), f64::from(*max_duration_secs)),
         }
     }
@@ -180,5 +181,16 @@ mod tests {
         let p = Profile::from_executor(&Executor::RampingVus { start: 0, stages: vec![Stage { duration_secs: 10, target: 100 }] });
         assert_eq!(p.value_at(5.0), 50.0);
         assert_eq!(p.duration(), 10.0);
+    }
+
+    #[test]
+    fn rate_units_become_per_second() {
+        let p = Profile::from_executor(&Executor::Rate { rate: 30, rate_unit: RateUnit::Minute, duration_secs: 120, max_vus: 1 });
+        assert_eq!(p.value_at(10.0), 0.5);
+        assert!((p.slot_time(1).unwrap() - 2.0).abs() < 1e-9, "30/min is one every 2 s");
+        assert!((p.slots_by(120.0) - 60.0).abs() < 1e-9);
+        let p = Profile::from_executor(&Executor::RampingRate { start: 0, stages: vec![Stage { duration_secs: 3600, target: 3600 }], rate_unit: RateUnit::Hour, max_vus: 1 });
+        assert_eq!(p.value_at(3600.0), 1.0);
+        assert!((p.slots_by(3600.0) - 1800.0).abs() < 1e-6);
     }
 }

@@ -3,7 +3,7 @@ import { newThreshold } from "../../lib/defaults";
 import { describeStatusRange } from "../../lib/estimate";
 import { allSteps, stepLabel } from "../../lib/flow";
 import type { Errors } from "../../lib/stages";
-import { Empty, Field, Icon, IconButton, NumberInput, Select } from "../ui";
+import { DurationInput, Empty, Field, Icon, IconButton, NumberInput, Select } from "../ui";
 import { Block, StageHeader } from "./DataStage";
 
 export const METRICS: { value: ThresholdMetric; label: string; unit: string }[] = [
@@ -86,8 +86,8 @@ export function ChecksStage({ config: c, onChange, errors, onJump }: { config: T
                     {t.abort && (
                       <label className="flex items-center gap-1.5">
                         after the first
-                        <span className="w-24">
-                          <NumberInput aria-label="Evaluate after" suffix="s" min={0} value={t.delay_secs} onChange={(v) => set(t.id, { delay_secs: Math.max(0, v ?? 0) })} />
+                        <span className="w-32">
+                          <DurationInput aria-label="Evaluate after" min={0} value={t.delay_secs} onChange={(v) => set(t.id, { delay_secs: Math.max(0, v ?? 0) })} />
                         </span>
                       </label>
                     )}
@@ -103,7 +103,7 @@ export function ChecksStage({ config: c, onChange, errors, onJump }: { config: T
       <Block title="Warm-up" hint="The first seconds of a run (connection setup, JIT, cold caches) can be left out of the verdict. They still appear in every chart, marked as excluded.">
         <div className="w-44">
           <Field label="Exclude the first" error={errors["warmup_secs"]}>
-            {(id) => <NumberInput id={id} suffix="s" min={0} value={c.warmup_secs} onChange={(v) => onChange({ ...c, warmup_secs: Math.max(0, v ?? 0) })} />}
+            {(id) => <DurationInput id={id} units={["s", "min"]} min={0} value={c.warmup_secs} onChange={(v) => onChange({ ...c, warmup_secs: Math.max(0, v ?? 0) })} />}
           </Field>
         </div>
       </Block>

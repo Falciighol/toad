@@ -198,7 +198,18 @@ model! {
     #[serde(rename_all = "snake_case")]
     pub enum ScenarioKind { Flow, Mix }
 
+    /// The time unit an arrival rate is counted in: iterations per second, minute or hour.
+    #[serde(rename_all = "snake_case")]
+    #[derive(Default, Copy, Eq)]
+    pub enum RateUnit {
+        #[default]
+        Second,
+        Minute,
+        Hour,
+    }
+
     /// One leg of a staged profile: move linearly to `target` over `duration_secs`.
+    /// Open models count `target` in the executor's `rate_unit`.
     pub struct Stage {
         pub duration_secs: u32,
         pub target: u32,
@@ -211,10 +222,23 @@ model! {
         Vus { vus: u32, duration_secs: u32 },
         /// Closed model with stages (ramp up, hold, ramp down).
         RampingVus { start: u32, stages: Vec<Stage> },
-        /// Open model: iterations started per second, regardless of how fast the target answers.
-        Rate { rate: u32, duration_secs: u32, max_vus: u32 },
-        /// Open model with staged rates.
-        RampingRate { start: u32, stages: Vec<Stage>, max_vus: u32 },
+        /// Open model: `rate` iterations started per `rate_unit`, regardless of how fast the
+        /// target answers. Tests saved before units existed count per second.
+        Rate {
+            rate: u32,
+            #[serde(default)]
+            rate_unit: RateUnit,
+            duration_secs: u32,
+            max_vus: u32,
+        },
+        /// Open model with staged rates (`start` and stage targets count per `rate_unit`).
+        RampingRate {
+            start: u32,
+            stages: Vec<Stage>,
+            #[serde(default)]
+            rate_unit: RateUnit,
+            max_vus: u32,
+        },
         /// A fixed number of iterations shared by the virtual users.
         Iterations { vus: u32, iterations: u64, max_duration_secs: u32 },
     }
@@ -652,13 +676,18 @@ impl Executor {
         }
     }
 
-    /// Peak iterations started per second (open models only).
-    pub fn peak_rate(&self) -> Option<u32> {
+    /// Peak rate as entered, in the executor's own unit (open models only).
+    pub fn peak_rate_in_unit(&self) -> Option<(u32, RateUnit)> {
         match self {
-            Executor::Rate { rate, .. } => Some(*rate),
-            Executor::RampingRate { start, stages, .. } => Some(stages.iter().map(|s| s.target).fold(*start, u32::max)),
+            Executor::Rate { rate, rate_unit, .. } => Some((*rate, *rate_unit)),
+            Executor::RampingRate { start, stages, rate_unit, .. } => Some((stages.iter().map(|s| s.target).fold(*start, u32::max), *rate_unit)),
             _ => None,
         }
+    }
+
+    /// Peak iterations started per second (open models only).
+    pub fn peak_rate(&self) -> Option<f64> {
+        self.peak_rate_in_unit().map(|(r, u)| u.per_second(f64::from(r)))
     }
 
     /// Planned length in seconds (`Iterations`: its max duration).
@@ -674,6 +703,30 @@ impl Executor {
 
     pub fn is_open(&self) -> bool {
         matches!(self, Executor::Rate { .. } | Executor::RampingRate { .. })
+    }
+}
+
+impl RateUnit {
+    /// Seconds in one unit.
+    pub fn secs(self) -> u32 {
+        match self {
+            RateUnit::Second => 1,
+            RateUnit::Minute => 60,
+            RateUnit::Hour => 3600,
+        }
+    }
+
+    /// A rate counted in this unit, as per second.
+    pub fn per_second(self, rate: f64) -> f64 {
+        rate / f64::from(self.secs())
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            RateUnit::Second => "second",
+            RateUnit::Minute => "minute",
+            RateUnit::Hour => "hour",
+        }
     }
 }
 
@@ -902,9 +955,10 @@ pub mod legacy {
                 Some(r) => Executor::RampingRate {
                     start: 1,
                     stages: vec![Stage { duration_secs: r, target: rate }, Stage { duration_secs: secs.saturating_sub(r), target: rate }],
+                    rate_unit: RateUnit::Second,
                     max_vus: l.concurrency,
                 },
-                None => Executor::Rate { rate, duration_secs: *secs, max_vus: l.concurrency },
+                None => Executor::Rate { rate, rate_unit: RateUnit::Second, duration_secs: *secs, max_vus: l.concurrency },
             },
             (StopCondition::Duration { secs }, None) => match ramp {
                 Some(r) => Executor::RampingVus {
@@ -983,7 +1037,7 @@ mod tests {
         assert!(!c.defaults.follow_redirects && c.connection.allow_invalid_certs);
         assert_eq!(
             c.scenarios[0].executor,
-            Executor::RampingRate { start: 1, stages: vec![Stage { duration_secs: 5, target: 500 }, Stage { duration_secs: 15, target: 500 }], max_vus: 200 }
+            Executor::RampingRate { start: 1, stages: vec![Stage { duration_secs: 5, target: 500 }, Stage { duration_secs: 15, target: 500 }], rate_unit: RateUnit::Second, max_vus: 200 }
         );
         // Round trip through the v2 shape.
         let back: TestConfig = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
@@ -1006,7 +1060,7 @@ mod tests {
         let l = legacy::V1Load { stop: crate::models::StopCondition::Requests { count: 99 }, ..base.clone() };
         assert!(matches!(legacy::executor(&l), Executor::Iterations { vus: 10, iterations: 99, .. }));
         let l = legacy::V1Load { rps_cap: Some(100), ..base };
-        assert_eq!(legacy::executor(&l), Executor::Rate { rate: 100, duration_secs: 30, max_vus: 10 });
+        assert_eq!(legacy::executor(&l), Executor::Rate { rate: 100, rate_unit: RateUnit::Second, duration_secs: 30, max_vus: 10 });
     }
 
     #[test]
@@ -1036,5 +1090,17 @@ mod tests {
         assert_eq!(s.label(), "GET {{baseUrl}}");
         s.name = "List users".into();
         assert_eq!(s.label(), "List users");
+    }
+
+    #[test]
+    fn rate_unit_defaults_to_seconds_and_round_trips() {
+        let old: Executor = serde_json::from_str(r#"{"kind":"rate","rate":20,"duration_secs":60,"max_vus":5}"#).unwrap();
+        assert_eq!(old, Executor::Rate { rate: 20, rate_unit: RateUnit::Second, duration_secs: 60, max_vus: 5 });
+        let e = Executor::RampingRate { start: 0, stages: vec![Stage { duration_secs: 60, target: 30 }], rate_unit: RateUnit::Minute, max_vus: 2 };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains(r#""rate_unit":"minute""#), "{json}");
+        assert_eq!(serde_json::from_str::<Executor>(&json).unwrap(), e);
+        assert_eq!(e.peak_rate(), Some(0.5));
+        assert_eq!(e.peak_rate_in_unit(), Some((30, RateUnit::Minute)));
     }
 }

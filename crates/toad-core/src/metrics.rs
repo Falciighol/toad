@@ -675,9 +675,11 @@ pub struct BottleneckDetector {
 
 impl BottleneckDetector {
     /// `target` is the scheduled rate for the second (open-model, single-request iterations
-    /// only). Only call this for seconds in the steady `Running` phase.
+    /// only). Only call this for seconds in the steady `Running` phase. Below one iteration per
+    /// second (rates set per minute or hour) a single second can't show a shortfall, so those
+    /// are not judged.
     pub fn observe(&mut self, point: &SecondPoint, target: f64, concurrency: u32) -> Option<Warning> {
-        if point.raw_p50 == 0 || target <= 0.0 {
+        if point.raw_p50 == 0 || target < 1.0 {
             return None;
         }
         let baseline = *self.baseline_raw_p50.get_or_insert(point.raw_p50);

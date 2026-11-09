@@ -1,11 +1,11 @@
-import type { ClientCert, Executor, Scenario, Settings, TestConfig } from "../../bindings";
+import type { ClientCert, Executor, RateUnit, Scenario, Settings, TestConfig } from "../../bindings";
 import { uid } from "../../lib/defaults";
 import { estimateTest, ASSUMED_LATENCY_MS } from "../../lib/estimate";
 import { updateScenario } from "../../lib/flow";
-import { fmtInt, fmtSecs } from "../../lib/format";
-import { convert, duration, isOpen, isStaged, span } from "../../lib/profile";
+import { fmtInt, fmtPerTime, fmtRps, fmtSecs } from "../../lib/format";
+import { convert, duration, isOpen, isStaged, peakPerSec, RATE_UNITS, rateSuffix, rateUnit, span } from "../../lib/profile";
 import type { Errors } from "../../lib/stages";
-import { Field, Icon, IconButton, NumberInput, Segmented, Toggle } from "../ui";
+import { DurationInput, Field, Icon, IconButton, NumberInput, Segmented, Toggle, UnitNumberInput } from "../ui";
 import { Block, StageHeader } from "./DataStage";
 import { ProfileChart } from "./ProfileChart";
 import type { PickFile } from "./StepEditor";
@@ -123,10 +123,10 @@ function ScenarioLoad(props: { scenario: Scenario; colorClass: string; timeMax?:
         <ExecutorFields executor={e} onChange={setE} perIteration={est?.perIteration ?? 1} />
         <div className="grid grid-cols-4 gap-4 border-t border-line pt-4">
           <Field label="Start after" hint="Offset from the run's start.">
-            {(id) => <NumberInput id={id} suffix="s" min={0} value={sc.start_offset_secs} onChange={(v) => set({ start_offset_secs: Math.max(0, v ?? 0) })} />}
+            {(id) => <DurationInput id={id} min={0} value={sc.start_offset_secs} onChange={(v) => set({ start_offset_secs: Math.max(0, v ?? 0) })} />}
           </Field>
           <Field label="Graceful stop" hint="In-flight iterations may finish; then they're cancelled.">
-            {(id) => <NumberInput id={id} suffix="s" min={0} value={sc.graceful_stop_secs} onChange={(v) => set({ graceful_stop_secs: Math.max(0, v ?? 0) })} />}
+            {(id) => <DurationInput id={id} units={["s", "min"]} min={0} value={sc.graceful_stop_secs} onChange={(v) => set({ graceful_stop_secs: Math.max(0, v ?? 0) })} />}
           </Field>
         </div>
       </div>
@@ -134,14 +134,34 @@ function ScenarioLoad(props: { scenario: Scenario; colorClass: string; timeMax?:
   );
 }
 
+const UNIT_WORD: Record<RateUnit, string> = { second: "second", minute: "minute", hour: "hour" };
+
+/** An arrival rate: whole iterations per second, minute or hour, the unit in a dropdown beside it. */
+export function RateInput(props: { id?: string; value: number; unit: RateUnit; min: number; onChange: (v: number) => void; onUnit: (u: RateUnit) => void; "aria-label"?: string }) {
+  return (
+    <UnitNumberInput
+      id={props.id}
+      aria-label={props["aria-label"]}
+      unitLabel="Rate unit"
+      value={props.value}
+      min={props.min}
+      unit={props.unit}
+      units={RATE_UNITS.map((u) => ({ value: u.value, label: u.short, title: `iterations ${u.label}` }))}
+      onUnit={props.onUnit}
+      onChange={(raw) => props.onChange(raw === "" ? 0 : Math.max(props.min, Math.round(Number(raw)) || 0))}
+    />
+  );
+}
+
 function ExecutorFields({ executor: e, onChange, perIteration }: { executor: Executor; onChange: (e: Executor) => void; perIteration: number }) {
-  const rateNote = (rate: number) => (perIteration > 1 ? `≈ ${fmtInt(rate * perIteration)} requests/s (${perIteration} per iteration)` : "1 request per iteration");
+  const u = rateUnit(e);
+  const rateNote = (rate: number) => (perIteration > 1 ? `≈ ${fmtInt(rate * perIteration)} requests${rateSuffix(u)} (${perIteration} per iteration)` : "1 request per iteration");
   switch (e.kind) {
     case "vus":
       return (
         <div className="grid grid-cols-4 gap-4">
           <Field label="Virtual users">{(id) => <NumberInput id={id} min={1} value={e.vus} onChange={(v) => onChange({ ...e, vus: v ?? 0 })} />}</Field>
-          <Field label="Duration">{(id) => <NumberInput id={id} suffix="s" min={1} value={e.duration_secs} onChange={(v) => onChange({ ...e, duration_secs: v ?? 0 })} />}</Field>
+          <Field label="Duration">{(id) => <DurationInput id={id} min={1} value={e.duration_secs} onChange={(v) => onChange({ ...e, duration_secs: v ?? 0 })} />}</Field>
         </div>
       );
     case "iterations":
@@ -149,14 +169,16 @@ function ExecutorFields({ executor: e, onChange, perIteration }: { executor: Exe
         <div className="grid grid-cols-4 gap-4">
           <Field label="Virtual users">{(id) => <NumberInput id={id} min={1} value={e.vus} onChange={(v) => onChange({ ...e, vus: v ?? 0 })} />}</Field>
           <Field label="Iterations" hint="Total, shared.">{(id) => <NumberInput id={id} min={1} value={e.iterations} onChange={(v) => onChange({ ...e, iterations: v ?? 0 })} />}</Field>
-          <Field label="Give up after" hint="Stops even if iterations remain.">{(id) => <NumberInput id={id} suffix="s" min={1} value={e.max_duration_secs} onChange={(v) => onChange({ ...e, max_duration_secs: v ?? 0 })} />}</Field>
+          <Field label="Give up after" hint="Stops even if iterations remain.">{(id) => <DurationInput id={id} min={1} value={e.max_duration_secs} onChange={(v) => onChange({ ...e, max_duration_secs: v ?? 0 })} />}</Field>
         </div>
       );
     case "rate":
       return (
         <div className="grid grid-cols-4 gap-4">
-          <Field label="Iterations per second" hint={rateNote(e.rate)}>{(id) => <NumberInput id={id} suffix="/s" min={1} value={e.rate} onChange={(v) => onChange({ ...e, rate: v ?? 0 })} />}</Field>
-          <Field label="Duration">{(id) => <NumberInput id={id} suffix="s" min={1} value={e.duration_secs} onChange={(v) => onChange({ ...e, duration_secs: v ?? 0 })} />}</Field>
+          <Field label={`Iterations per ${UNIT_WORD[u]}`} hint={rateNote(e.rate)}>
+            {(id) => <RateInput id={id} min={0} value={e.rate} unit={u} onChange={(rate) => onChange({ ...e, rate })} onUnit={(rate_unit) => onChange({ ...e, rate_unit })} />}
+          </Field>
+          <Field label="Duration">{(id) => <DurationInput id={id} min={1} value={e.duration_secs} onChange={(v) => onChange({ ...e, duration_secs: v ?? 0 })} />}</Field>
           <Field label="Max virtual users" hint="When all are busy, iterations wait and their delay shows in latency.">{(id) => <NumberInput id={id} min={1} value={e.max_vus} onChange={(v) => onChange({ ...e, max_vus: v ?? 0 })} />}</Field>
         </div>
       );
@@ -167,7 +189,13 @@ function ExecutorFields({ executor: e, onChange, perIteration }: { executor: Exe
       return (
         <div className="space-y-3">
           <div className="grid grid-cols-4 gap-4">
-            <Field label={open ? "Start at (iterations/s)" : "Start with (users)"}>{(id) => <NumberInput id={id} min={0} value={e.start} onChange={(v) => onChange({ ...e, start: Math.max(0, v ?? 0) })} />}</Field>
+            {open ? (
+              <Field label={`Start at (iterations per ${UNIT_WORD[u]})`} hint="The unit applies to every stage.">
+                {(id) => <RateInput id={id} min={0} value={e.start} unit={u} onChange={(start) => onChange({ ...e, start })} onUnit={(rate_unit) => onChange({ ...e, rate_unit })} />}
+              </Field>
+            ) : (
+              <Field label="Start with (users)">{(id) => <NumberInput id={id} min={0} value={e.start} onChange={(v) => onChange({ ...e, start: Math.max(0, v ?? 0) })} />}</Field>
+            )}
             {open && <Field label="Max virtual users" hint="When all are busy, iterations wait.">{(id) => <NumberInput id={id} min={1} value={e.max_vus} onChange={(v) => onChange({ ...e, max_vus: v ?? 0 })} />}</Field>}
           </div>
           <table className="w-full max-w-xl text-body">
@@ -187,10 +215,10 @@ function ExecutorFields({ executor: e, onChange, perIteration }: { executor: Exe
                   <tr key={i}>
                     <td className="py-1 font-mono text-small text-text3">{i + 1}</td>
                     <td className="py-1 pr-2">
-                      <NumberInput aria-label={`Stage ${i + 1} duration`} suffix="s" min={1} value={s.duration_secs} onChange={(v) => onChange({ ...e, stages: e.stages.map((x, j) => (j === i ? { ...x, duration_secs: v ?? 0 } : x)) })} />
+                      <DurationInput aria-label={`Stage ${i + 1} duration`} min={1} value={s.duration_secs} onChange={(v) => onChange({ ...e, stages: e.stages.map((x, j) => (j === i ? { ...x, duration_secs: v ?? 0 } : x)) })} />
                     </td>
                     <td className="py-1 pr-2">
-                      <NumberInput aria-label={`Stage ${i + 1} target`} suffix={open ? "/s" : "VUs"} min={0} value={s.target} onChange={(v) => onChange({ ...e, stages: e.stages.map((x, j) => (j === i ? { ...x, target: Math.max(0, v ?? 0) } : x)) })} />
+                      <NumberInput aria-label={`Stage ${i + 1} target`} suffix={open ? rateSuffix(u) : "VUs"} min={0} value={s.target} onChange={(v) => onChange({ ...e, stages: e.stages.map((x, j) => (j === i ? { ...x, target: Math.max(0, v ?? 0) } : x)) })} />
                     </td>
                     <td className="tabular py-1 font-mono text-small text-text3">{fmtSecs(end)}</td>
                     <td className="py-1">
@@ -219,14 +247,15 @@ function ExecutorFields({ executor: e, onChange, perIteration }: { executor: Exe
 function Estimate({ config: c, settings }: { config: TestConfig; settings: Settings }) {
   const e = estimateTest(c);
   const overVus = e.peakVus > settings.max_concurrency;
-  const openRate = c.scenarios.filter((s) => s.enabled && isOpen(s.executor)).reduce((n, s) => n + Math.max(...("rate" in s.executor ? [s.executor.rate] : []), ...("stages" in s.executor ? s.executor.stages.map((x) => x.target) : [0])), 0);
+  // Per second, whatever unit each scenario's rate is set in: the Settings ceiling is per second.
+  const openRate = c.scenarios.filter((s) => s.enabled && isOpen(s.executor)).reduce((n, s) => n + peakPerSec(s.executor), 0);
   return (
     <Block title="This run" hint={e.latencyBound ? `Estimates for user-paced scenarios assume the target answers in ~${ASSUMED_LATENCY_MS} ms; the real numbers follow its speed.` : "Arrival-rate scenarios start iterations on schedule, so these numbers hold if the target keeps up."}>
       <dl className="grid grid-cols-5 gap-4">
         {[
           ["Length", fmtSecs(e.secs)],
           ["Requests", `≈${fmtInt(e.requests)}`],
-          ["Peak rate", `≈${fmtInt(e.peakRps)} rps`],
+          ["Peak rate", `≈${fmtPerTime(e.peakRps)}`],
           ["Peak users", fmtInt(e.peakVus)],
           ["Sockets", `up to ${fmtInt(e.peakVus)}`],
         ].map(([k, v]) => (
@@ -237,7 +266,7 @@ function Estimate({ config: c, settings }: { config: TestConfig; settings: Setti
         ))}
       </dl>
       {overVus && <p className="mt-3 text-small text-danger">Up to {fmtInt(e.peakVus)} virtual users across scenarios, over the Settings ceiling of {fmtInt(settings.max_concurrency)}.</p>}
-      {openRate > settings.max_rps && <p className="mt-1 text-small text-danger">Up to {fmtInt(openRate)} iterations/s, over the Settings ceiling of {fmtInt(settings.max_rps)}.</p>}
+      {openRate > settings.max_rps && <p className="mt-1 text-small text-danger">Up to {fmtRps(openRate)} iterations/s, over the Settings ceiling of {fmtInt(settings.max_rps)} per second.</p>}
       {e.scenarios.filter((s) => s.vusNeeded).map((s) => (
         <p key={s.id} className="mt-2 flex gap-1.5 text-small text-warning">
           <Icon name="alert" className="mt-px size-3.5" />

@@ -7,6 +7,7 @@ import type { Errors } from "../../lib/stages";
 import { namesFor } from "../../lib/template";
 import { Field, Icon, IconButton, Menu, NumberInput, Segmented } from "../ui";
 import { ResolvedPreview } from "./ResolvedPreview";
+import { BottomTabs, ResponsePane, type BottomTab, type LastResponse } from "./ResponsePane";
 import { RunIfEditor, runIfText } from "./RunIfEditor";
 import { StepEditor, type PickFile } from "./StepEditor";
 
@@ -19,7 +20,10 @@ export type FlowProps = {
   scenarioId: string;
   onScenario: (id: string) => void;
   tryResult: TryResult | null;
-  sent: Record<string, Sample>;
+  /** When the last Try once finished (ms since epoch). */
+  tryAt: number;
+  trying: boolean;
+  sent: Record<string, LastResponse>;
   onSend: (stepId: string) => void;
   sending: string | null;
   onPickFile: PickFile;
@@ -96,6 +100,7 @@ export function FlowStage(p: FlowProps) {
   const sc = c.scenarios.find((s) => s.id === p.scenarioId) ?? c.scenarios[0]!;
   const [curlOpen, setCurlOpen] = useState<Where | null>(null);
   const [previewOpen, setPreviewOpen] = useState(true);
+  const [bottom, setBottom] = useState<BottomTab>("request");
   const [split, setSplit] = useState(0.62);
   const right = useRef<HTMLDivElement>(null);
   const outline = useRef<HTMLDivElement>(null);
@@ -224,6 +229,23 @@ export function FlowStage(p: FlowProps) {
 
   const names = useMemo(() => namesFor(c, ref?.step.id ?? null), [c, ref?.step.id]);
   const stepErrors = (id: string) => Object.fromEntries(Object.entries(p.errors).filter(([k]) => k.startsWith(`step:${id}`)));
+  const stepName = (id: string) => {
+    const s = findStep(c, id);
+    return s ? stepLabel(s.step) : id;
+  };
+
+  // The newest real response for the selected step: its own Send once, else the last Try once.
+  const selId = ref?.step.id ?? null;
+  const tryShot = selId ? tried.get(selId) : undefined;
+  const last: LastResponse | null = (selId ? p.sent[selId] : undefined) ?? (tryShot ? { sample: tryShot, at: p.tryAt, source: "try" } : null);
+  const sendingThis = !!selId && p.sending === selId;
+  const busy = sendingThis || p.trying;
+  // Send once and Try once bring the response into view as they start.
+  useEffect(() => {
+    if (!busy) return;
+    setBottom("response");
+    setPreviewOpen(true);
+  }, [busy]);
 
   const onDrag = (e: React.PointerEvent) => {
     const box = right.current?.getBoundingClientRect();
@@ -332,7 +354,7 @@ export function FlowStage(p: FlowProps) {
                 defaultAuth={c.defaults.auth}
                 onSend={() => p.onSend(ref.step.id)}
                 sending={p.sending === ref.step.id}
-                lastSample={p.sent[ref.step.id] ?? tried.get(ref.step.id) ?? null}
+                lastSample={last?.sample ?? null}
                 onPickFile={p.onPickFile}
               />
             </div>
@@ -348,15 +370,25 @@ export function FlowStage(p: FlowProps) {
                   <span className="absolute inset-x-0 -top-px h-0.5 bg-accent opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
                 <div className="relative min-h-0 flex-1 bg-chrome">
-                  <ResolvedPreview config={c} step={ref.step} tryVars={p.tryResult?.vars ?? null} />
+                  {bottom === "request" ? (
+                    <ResolvedPreview config={c} step={ref.step} tryVars={p.tryResult?.vars ?? null} title={<BottomTabs value={bottom} onChange={setBottom} last={last} busy={busy} />} />
+                  ) : (
+                    <ResponsePane
+                      last={last}
+                      busy={busy}
+                      busyLabel={sendingThis ? "Sending…" : "Trying…"}
+                      stepName={stepName}
+                      title={<BottomTabs value={bottom} onChange={setBottom} last={last} busy={busy} />}
+                    />
+                  )}
                   <div className="absolute top-1.5 right-10">
-                    <IconButton icon="chevronDown" size="sm" label="Hide the resolved request" onClick={() => setPreviewOpen(false)} />
+                    <IconButton icon="chevronDown" size="sm" label="Hide this pane" onClick={() => setPreviewOpen(false)} />
                   </div>
                 </div>
               </>
             ) : (
               <button type="button" className="flex h-8 shrink-0 items-center gap-2 border-t border-line bg-chrome px-4 text-small text-text3 hover:text-text" onClick={() => setPreviewOpen(true)}>
-                <Icon name="chevronRight" className="size-3 -rotate-90" /> Resolved request
+                <Icon name="chevronRight" className="size-3 -rotate-90" /> {bottom === "response" ? "Response" : "Resolved request"}
               </button>
             )}
           </>

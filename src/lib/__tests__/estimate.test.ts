@@ -1,6 +1,7 @@
 import { newScenario, newTest, pauseItem } from "../defaults";
 import { estimateScenario, estimateTest, requestsPerIteration, ASSUMED_LATENCY_MS } from "../estimate";
-import { area, convert, duration, peak, points, valueAt } from "../profile";
+import { area, convert, duration, peak, peakPerSec, points, toRateUnit, unit, valueAt } from "../profile";
+import { fmtPerTime } from "../format";
 
 describe("profiles", () => {
   it("draws staged executors as corner points", () => {
@@ -14,6 +15,32 @@ describe("profiles", () => {
   it("integrates arrival rates", () => {
     expect(area({ kind: "rate", rate: 50, duration_secs: 10, max_vus: 5 })).toBe(500);
     expect(area({ kind: "ramping_rate", start: 0, stages: [{ duration_secs: 10, target: 100 }], max_vus: 10 })).toBe(500);
+  });
+  it("counts rates in their unit and converts to per second for totals", () => {
+    const m = { kind: "rate" as const, rate: 30, rate_unit: "minute" as const, duration_secs: 120, max_vus: 5 };
+    expect(peak(m)).toBe(30);
+    expect(peakPerSec(m)).toBe(0.5);
+    expect(area(m)).toBe(60);
+    expect(unit(m)).toBe("iter/min");
+    const h = { kind: "ramping_rate" as const, start: 0, stages: [{ duration_secs: 3600, target: 120 }], rate_unit: "hour" as const, max_vus: 1 };
+    expect(area(h)).toBe(60);
+    expect(convert(h, "rate")).toMatchObject({ kind: "rate", rate: 120, rate_unit: "hour" });
+    expect(convert(m, "ramping_rate")).toMatchObject({ kind: "ramping_rate", rate_unit: "minute" });
+  });
+  it("averages per-second counts over the rate unit", () => {
+    const m = { kind: "rate" as const, rate: 30, rate_unit: "minute" as const, duration_secs: 120, max_vus: 5 };
+    // One iteration every 2 s is 30/min, not a 0/60 sawtooth.
+    const perSec = Array.from({ length: 120 }, (_, i) => ({ t: i + 1, v: i % 2 === 0 ? 1 : 0 }));
+    const out = toRateUnit(m, perSec);
+    expect(out[59]!.v).toBe(30);
+    expect(out[119]!.v).toBe(30);
+    expect(toRateUnit({ ...m, rate_unit: "second" }, perSec)).toBe(perSec);
+  });
+  it("formats low rates in a readable unit", () => {
+    expect(fmtPerTime(12)).toBe("12 req/s");
+    expect(fmtPerTime(2.5)).toBe("2.5 req/s");
+    expect(fmtPerTime(0.5)).toBe("30 req/min");
+    expect(fmtPerTime(2 / 3600)).toBe("2 req/h");
   });
   it("converts between models keeping the level", () => {
     const r = convert({ kind: "vus", vus: 40, duration_secs: 60 }, "rate");

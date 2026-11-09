@@ -269,10 +269,13 @@ export type Executor =
 { kind: "vus"; vus: number; duration_secs: number } | 
 /**  Closed model with stages (ramp up, hold, ramp down). */
 { kind: "ramping_vus"; start: number; stages: Stage[] } | 
-/**  Open model: iterations started per second, regardless of how fast the target answers. */
-{ kind: "rate"; rate: number; duration_secs: number; max_vus: number } | 
-/**  Open model with staged rates. */
-{ kind: "ramping_rate"; start: number; stages: Stage[]; max_vus: number } | 
+/**
+ *  Open model: `rate` iterations started per `rate_unit`, regardless of how fast the
+ *  target answers. Tests saved before units existed count per second.
+ */
+{ kind: "rate"; rate: number; rate_unit?: RateUnit; duration_secs: number; max_vus: number } | 
+/**  Open model with staged rates (`start` and stage targets count per `rate_unit`). */
+{ kind: "ramping_rate"; start: number; stages: Stage[]; rate_unit?: RateUnit; max_vus: number } | 
 /**  A fixed number of iterations shared by the virtual users. */
 { kind: "iterations"; vus: number; iterations: number; max_duration_secs: number };
 
@@ -421,6 +424,9 @@ export type ProxySpec = {
 	/**  Comma-separated hosts that bypass the proxy. */
 	no_proxy: string,
 };
+
+/**  The time unit an arrival rate is counted in: iterations per second, minute or hour. */
+export type RateUnit = "second" | "minute" | "hour";
 
 export type RequestStep = {
 	id: string,
@@ -696,7 +702,10 @@ export type SpectrumPoint = {
 	us: number,
 };
 
-/**  One leg of a staged profile: move linearly to `target` over `duration_secs`. */
+/**
+ *  One leg of a staged profile: move linearly to `target` over `duration_secs`.
+ *  Open models count `target` in the executor's `rate_unit`.
+ */
 export type Stage = {
 	duration_secs: number,
 	target: number,

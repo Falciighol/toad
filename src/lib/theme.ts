@@ -3,7 +3,7 @@
 // charts and anything drawn in code use exactly the same colors. index.css holds first-paint fallbacks for the default
 // accent; re-generate them if a stop below moves.
 
-import { hex, ramp, rgba, type Ramp } from "./color";
+import { hex, oklch, ramp, rgba, type Ramp } from "./color";
 
 export type ResolvedTheme = "dark" | "light";
 export type Accent = "violet" | "blue" | "mint" | "lime" | "amber" | "coral";
@@ -49,6 +49,24 @@ const GROUND_L = [0.985, 0.958, 0.92, 0.865, 0.745, 0.665, 0.495, 0.43, 0.355, 0
 const GROUND_C = [0.75, 0.85, 0.55, 0.2, 0.05, 0.05, 0.2, 0.5, 0.75, 0.9, 0.85];
 const GROUND_HUE = [92, 92, 92, 92, 92, 262, 262, 262, 262, 262, 262];
 const GROUND = ramp(GROUND_L, GROUND_C, 0.009, GROUND_HUE);
+
+/**
+ * A tone between two ground stops, by stop index (0 = 50 … 10 = 950). Section separation lives in these in-between
+ * steps: a full stop is too coarse for hairlines and too far apart for a workspace set against its chrome.
+ */
+function groundAt(i: number) {
+  const a = Math.floor(i);
+  const b = Math.min(10, a + 1);
+  const t = i - a;
+  return hex(oklch(GROUND_L[a]! + (GROUND_L[b]! - GROUND_L[a]!) * t, (GROUND_C[a]! + (GROUND_C[b]! - GROUND_C[a]!) * t) * 0.009, GROUND_HUE[t < 0.5 ? a : b]!));
+}
+
+/**
+ * Dark sets the workspace in near-black graphite and lifts the chrome and panels one step above it, so the header, rail,
+ * outline and docked preview read as their own sections. Never pure #000: it smears on OLED and crushes the step.
+ */
+const DARK_BG = hex(oklch(0.18, 0.004, 262));
+const DARK_CHROME = hex(oklch(0.235, 0.0045, 262));
 
 // Tailwind v4's lightness spine for the colored ramps. White text on 600 passes AA, and so does dark ink on 400.
 const COLOR_L = [0.97, 0.932, 0.882, 0.809, 0.707, 0.623, 0.546, 0.488, 0.424, 0.379, 0.282];
@@ -139,15 +157,17 @@ export function palette(theme: ResolvedTheme, accent: Accent = DEFAULT_ACCENT): 
   const [series1, series2, series3] = SERIES_CANDIDATES.filter((h) => hueGap(h.hue, pack.brand.hue) >= 60).map((h) => fill(colorRamp(h)));
 
   return {
-    bg: dark ? "#000000" : s(100),
-    chrome: dark ? "#000000" : s(50),
-    panel: dark ? "#0e0e10" : s(50),
-    raised: `rgb(${tint} / ${dark ? 0.04 : 0.05})`,
-    raised2: `rgb(${tint} / 0.08)`,
-    seg: dark ? "rgb(255 255 255 / 0.12)" : s(50),
-    line: dark ? "rgb(255 255 255 / 0.06)" : s(200),
-    line2: dark ? "rgb(255 255 255 / 0.1)" : s(300),
-    line3: dark ? "rgb(255 255 255 / 0.16)" : s(400),
+    // The workspace sits a step below its chrome in both themes: near-black under graphite in dark, paper under
+    // brighter paper in light. Hairlines are strong enough to draw a section edge on either side of that step.
+    bg: dark ? DARK_BG : groundAt(1.4),
+    chrome: dark ? DARK_CHROME : s(50),
+    panel: dark ? DARK_CHROME : s(50),
+    raised: `rgb(${tint} / 0.05)`,
+    raised2: `rgb(${tint} / ${dark ? 0.09 : 0.08})`,
+    seg: dark ? "rgb(255 255 255 / 0.14)" : s(50),
+    line: dark ? "rgb(255 255 255 / 0.11)" : groundAt(2.5),
+    line2: dark ? "rgb(255 255 255 / 0.16)" : groundAt(3.4),
+    line3: dark ? "rgb(255 255 255 / 0.26)" : s(400),
     text: dark ? s(100) : s(900),
     text2: dark ? s(300) : s(800),
     text3: dark ? s(400) : s(700),
@@ -169,10 +189,10 @@ export function palette(theme: ResolvedTheme, accent: Accent = DEFAULT_ACCENT): 
     series1: series1!,
     series2: series2!,
     series3: series3!,
-    grid: dark ? "rgb(255 255 255 / 0.06)" : s(200),
+    grid: dark ? "rgb(255 255 255 / 0.07)" : s(200),
     overlay: dark ? "rgb(0 0 0 / 0.6)" : "rgb(28 24 16 / 0.32)",
     shadow: dark
-      ? "0 18px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04)"
+      ? "0 18px 48px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06)"
       : "0 18px 48px rgb(40 30 10 / 0.16), 0 0 0 1px rgb(0 0 0 / 0.05)",
   };
 }

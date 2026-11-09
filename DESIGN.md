@@ -3,15 +3,15 @@ name: Toad
 description: A small, fast desktop app for load-testing HTTP APIs, drawn in Saga's near-colorless world with one Mint accent.
 colors:
   # Dark theme (primary target). Runtime source: src/lib/theme.ts palette("dark", "mint"); first paint: src/index.css.
-  ground-dark: "#000000"
-  chrome-dark: "#000000"
-  panel-dark: "#0e0e10"
-  raised-dark: "rgb(255 255 255 / 0.04)"
-  raised2-dark: "rgb(255 255 255 / 0.08)"
-  seg-dark: "rgb(255 255 255 / 0.12)"
-  line-dark: "rgb(255 255 255 / 0.06)"
-  line2-dark: "rgb(255 255 255 / 0.1)"
-  line3-dark: "rgb(255 255 255 / 0.16)"
+  ground-dark: "#111213"
+  chrome-dark: "#1d1e20"
+  panel-dark: "#1d1e20"
+  raised-dark: "rgb(255 255 255 / 0.05)"
+  raised2-dark: "rgb(255 255 255 / 0.09)"
+  seg-dark: "rgb(255 255 255 / 0.14)"
+  line-dark: "rgb(255 255 255 / 0.11)"
+  line2-dark: "rgb(255 255 255 / 0.16)"
+  line3-dark: "rgb(255 255 255 / 0.26)"
   text-dark: "#f3f1eb"
   text2-dark: "#d3d2d1"
   text3-dark: "#acacac"
@@ -29,17 +29,17 @@ colors:
   series1-dark: "#e2854e"
   series2-dark: "#9d92ef"
   series3-dark: "#4facd9"
-  grid-dark: "rgb(255 255 255 / 0.06)"
+  grid-dark: "rgb(255 255 255 / 0.07)"
   overlay-dark: "rgb(0 0 0 / 0.6)"
   # Light theme. Runtime source: palette("light", "mint").
-  ground-light: "#f3f1eb"
+  ground-light: "#edece7"
   chrome-light: "#fcfaf5"
   panel-light: "#fcfaf5"
   raised-light: "rgb(40 32 16 / 0.05)"
   raised2-light: "rgb(40 32 16 / 0.08)"
   seg-light: "#fcfaf5"
-  line-light: "#e6e4e1"
-  line2-light: "#d3d2d1"
+  line-light: "#dcdbd9"
+  line2-light: "#c3c3c2"
   line3-light: "#acacac"
   text-light: "#171a1d"
   text2-light: "#3a3c3f"
@@ -255,12 +255,12 @@ components:
 
 Toad is a measuring instrument that sits next to the editor: a near-colorless ground, a chrome-coloured rail and header, hairline cards, and literal values set in mono so they read like readouts. Color is rationed. One accent (Mint by default) marks what you can act on and what you have chosen; status hues mean status; chart series are the only place hue carries data. Everything else is ground, line and text in four steps.
 
-The world is Saga's: true black in dark, warm paper in light, built at runtime from OKLCH ramps in `src/lib/theme.ts` so charts and CSS share one palette. The accent is a per-machine preference across six packs (Violet, Blue, Mint, Lime, Amber, Coral); every rule here is written against roles, not hues, so it holds for any pack. Density is desktop-tool density: 13px body, 32px controls, 12px card radii, and no decoration that isn't carrying information. The signature is the drawn load profile: the plan is a line you drag, and the same chart later lays the achieved run over it.
+The world is Saga's: a near-black workspace under graphite chrome in dark, warm paper in light, built at runtime from OKLCH ramps in `src/lib/theme.ts` so charts and CSS share one palette. The accent is a per-machine preference across six packs (Violet, Blue, Mint, Lime, Amber, Coral); every rule here is written against roles, not hues, so it holds for any pack. Density is desktop-tool density: 13px body, 32px controls, 12px card radii, and no decoration that isn't carrying information. The signature is the drawn load profile: the plan is a line you drag, and the same chart later lays the achieved run over it.
 
 The system refuses the category default of one long form beside a dashboard, and it refuses decorative color: no gradients, no tinted card backgrounds, no colored rail bars.
 
 **Key Characteristics:**
-- True-black (dark) or warm-paper (light) ground; the chrome (rail, header, footer, outline) is the same ground, divided by hairlines.
+- A near-black (dark) or deep-paper (light) workspace, with the chrome (header, rail, Flow outline, docked preview, footer) one clear step lighter, so every section reads as its own region before a hairline is needed.
 - One accent, used only for the primary action, selection, focus and the planned-load line.
 - Instrument Sans for interface text; Geist Mono with tabular figures for every literal value, URL, method and number.
 - Five type sizes; hierarchy comes from weight and text tone, not more sizes.
@@ -284,8 +284,8 @@ A colorless, two-theme ground with one accent and a disciplined set of meaning-b
 - **Chart series** (`series1..3`): orange, violet and blue for Mint. They are the first candidates from a fixed list (hues 50, 288, 232, 340, 110, 185) at least 60° from the accent, so data never borrows the accent and never blurs into it. They color latency percentiles, Compare's A/B lines, per-scenario load profiles and inline latency bars and sparklines.
 
 ### Neutral
-- **Ground** (`ground-*`): the window. True black (#000) in dark; warm paper in light.
-- **Chrome** (`chrome-*`): rail, header, footer and the Flow outline. Equal to the ground in dark, one step lighter in light.
+- **Ground** (`ground-*`): the workspace (the step editor, stage pages, run content). Near-black graphite (`#111213`) in dark, never pure `#000`; a deeper warm paper in light, a step below the chrome.
+- **Chrome** (`chrome-*`): header, rail, footer, the Flow outline and the docked Resolved preview. Graphite in dark and the brightest paper in light: always one visible step above the workspace, equal to `panel`.
 - **Panel** (`panel-*`): cards, popovers, menus, dialogs.
 - **Raised / Raised 2** (`raised*-*`): hover fills and quiet tracks; raised2 is the segmented track, count badges, neutral pills and generator tokens.
 - **Seg** (`seg-*`): the chosen segment of a segmented control.
@@ -299,6 +299,8 @@ A colorless, two-theme ground with one accent and a disciplined set of meaning-b
 **The No Side Bar Rule.** The active rail item is a full accent-wash fill with an accent-ink icon. It never carries a colored side stripe.
 
 **The Data Never Borrows Rule.** Chart series are never the accent. Plans are the dashed accent line; achieved load over a plan is drawn in `text`; targets and reference lines are neutral `text4`, dashed.
+
+**The Section Step Rule.** Sections separate by tone first and hairline second. Chrome sits one step above the workspace in both themes (graphite over near-black, bright paper over deep paper), dividers are at least `line`, and control edges at least `line2`. Never set chrome back to the workspace tone; a region the eye can't find without hunting for a 1px line is a contrast bug.
 
 **The Token Tone Rule.** In templates and resolved previews: variables and resolved values are info, generators are neutral raised2, pending tokens are warning, unknown or invalid tokens are danger. Secrets render as masked dots, never colored.
 
@@ -334,7 +336,7 @@ Spacing runs on a 4px base. Controls are 32px tall (small 26px, icon buttons 28 
 Flat by default, with tonal layering. Panels separate from the ground by fill and a hairline, never by shadow. Only things that float (popovers, menus, dialogs, toasts, chart tooltips) carry the pop shadow, which pairs a soft drop with a 1px outline. Dialogs dim the window with the overlay and a 4px backdrop blur.
 
 ### Shadow Vocabulary
-- **Pop, dark** (`box-shadow: 0 18px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04)`): floating surfaces in dark.
+- **Pop, dark** (`box-shadow: 0 18px 48px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.06)`): floating surfaces in dark.
 - **Pop, light** (`box-shadow: 0 18px 48px rgb(40 30 10 / 0.16), 0 0 0 1px rgb(0 0 0 / 0.05)`): floating surfaces in light.
 - **Segment lift** (`box-shadow: 0 1px 2px rgb(0 0 0 / 0.12)`): the chosen segment of a segmented control only.
 - **Selection ring** (`box-shadow: inset 0 0 0 1px var(--accent)`): selected outline steps and picked rows, on the accent wash.

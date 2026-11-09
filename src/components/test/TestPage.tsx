@@ -1,22 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { confirm, open } from "@tauri-apps/plugin-dialog";
-import type { HostInfo, Sample, Settings, TestConfig, TryResult } from "../../bindings";
+import type { HostInfo, Settings, TestConfig, TryResult } from "../../bindings";
 import { api, ApiError, errorMessage } from "../../lib/api";
 import { findStep } from "../../lib/flow";
 import { fmtInt, fmtSecs } from "../../lib/format";
-import { duration, isOpen, maxVus, peak } from "../../lib/profile";
+import { duration, fmtLevel, isOpen, maxVus, peak, rateUnit } from "../../lib/profile";
 import { errorsByStage, STAGE_LABEL, STAGES, stageOf, summary, toErrors, type Errors, type Stage } from "../../lib/stages";
-import { Icon, type IconName, Kbd, NumberInput, Popover } from "../ui";
+import { DurationInput, Icon, type IconName, Kbd, NumberInput, Popover, Spinner } from "../ui";
 import { ChecksStage } from "./ChecksStage";
 import { DataStage } from "./DataStage";
 import { FlowStage } from "./FlowStage";
-import { LoadStage } from "./LoadStage";
+import { LoadStage, RateInput } from "./LoadStage";
+import type { LastResponse } from "./ResponsePane";
 import { ReviewStage } from "./ReviewStage";
 
 const STAGE_ICON: Record<Stage, IconName> = { flow: "flow", data: "data", load: "load", checks: "shield", review: "review" };
 const mod = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform) ? "⌘" : "Ctrl+";
 
 type SaveState = "saved" | "saving" | "unsaved" | "error";
+
+/** One-line outcome of a Try once, for a toast when its full result isn't on screen. */
+export function trySummary(r: TryResult): { kind: "error" | "info"; text: string } {
+  if (r.error) return { kind: "error", text: `Try once stopped: ${r.error}` };
+  const n = r.steps.length;
+  const ok = r.steps.filter((s) => s.outcome === "ok").length;
+  const failed = r.steps.filter((s) => s.outcome === "failed" || s.outcome === "build_error" || s.outcome === "blocked").length;
+  const rest = n - ok - failed;
+  const parts = [`${fmtInt(ok)} OK`, failed ? `${fmtInt(failed)} failed` : "", rest ? `${fmtInt(rest)} skipped` : ""].filter(Boolean).join(", ");
+  return { kind: failed ? "error" : "info", text: `Try once: ${fmtInt(n)} ${n === 1 ? "step" : "steps"}, ${parts}. Details in Review.` };
+}
 
 function isEditable(el: Element | null): boolean {
   if (!el) return false;
@@ -46,7 +58,8 @@ export function TestPage(props: {
   const [hostsError, setHostsError] = useState<string | null>(null);
   const [tryResult, setTryResult] = useState<TryResult | null>(null);
   const [trying, setTrying] = useState(false);
-  const [sent, setSent] = useState<Record<string, Sample>>({});
+  const [tryAt, setTryAt] = useState(0);
+  const [sent, setSent] = useState<Record<string, LastResponse>>({});
   const [sending, setSending] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const latest = useRef(config);
@@ -175,14 +188,23 @@ export function TestPage(props: {
     try {
       if (!(await confirmHosts())) return;
       const c = await ensureSaved();
-      setTryResult(await api.tryFlow(c, null));
+      const r = await api.tryFlow(c, null);
+      setTryResult(r);
+      setTryAt(Date.now());
+      // Older Send once results would hide this run's responses.
+      setSent({});
+      // The Review stage shows the whole result; elsewhere, say how it went.
+      if (stage !== "review") {
+        const t = trySummary(r);
+        props.notify(t.kind, t.text);
+      }
     } catch (e) {
       if (e instanceof ApiError && e.fields.length) setErrors(toErrors(e.fields));
       props.notify("error", errorMessage(e));
     } finally {
       setTrying(false);
     }
-  }, [trying, confirmHosts, ensureSaved, props]);
+  }, [trying, stage, confirmHosts, ensureSaved, props]);
 
   const sendOnce = useCallback(
     async (stepId: string) => {
@@ -191,7 +213,8 @@ export function TestPage(props: {
         if (!(await confirmHosts())) return;
         const c = await ensureSaved();
         const r = await api.sendStep(c, stepId, tryResult?.vars ?? []);
-        if (r.steps[0]) setSent((m) => ({ ...m, [stepId]: r.steps[0]! }));
+        const sample = r.steps[0];
+        if (sample) setSent((m) => ({ ...m, [stepId]: { sample, at: Date.now(), source: "send" } }));
         if (r.steps[0]?.outcome === "skipped") props.notify("info", `${r.steps[0].error}. Try once fills values from earlier steps.`);
       } catch (e) {
         props.notify("error", errorMessage(e));
@@ -347,6 +370,8 @@ export function TestPage(props: {
                   setSelected(null);
                 }}
                 tryResult={tryResult}
+                tryAt={tryAt}
+                trying={trying}
                 sent={sent}
                 onSend={(id) => void sendOnce(id)}
                 sending={sending}
@@ -448,8 +473,8 @@ function TestHeader(p: {
         </>
       ) : (
         <>
-          <button type="button" className="btn btn-sm" onClick={p.onTry} disabled={p.trying} title={`One virtual user through every step, once (${mod}⇧Enter)`}>
-            <Icon name="bolt" className="size-3.5" /> {p.trying ? "Trying…" : "Try once"}
+          <button type="button" className="btn btn-sm" onClick={p.onTry} disabled={p.trying} aria-busy={p.trying} title={`One virtual user through every step, once (${mod}⇧Enter)`}>
+            {p.trying ? <Spinner /> : <Icon name="bolt" className="size-3.5" />} {p.trying ? "Trying…" : "Try once"}
           </button>
           <button type="button" className="btn btn-primary btn-sm w-24" onClick={p.onStart} disabled={p.starting} title={`Start (${mod}Enter)${p.errorCount ? ` · ${p.errorCount} issues to fix` : ""}`}>
             <Icon name="play" className="size-3" /> {p.starting ? "Starting…" : "Start"}
@@ -471,8 +496,8 @@ function LoadChip({ config: c, onChange, onOpen, disabled }: { config: TestConfi
     ? `${enabled.length} scenarios · ${fmtInt(enabled.reduce((n, s) => n + maxVus(s.executor), 0))} VUs`
     : e!.kind === "iterations"
       ? `${fmtInt(e!.vus)} VUs · ${fmtInt(e!.iterations)} iter.`
-      : `${fmtInt(isOpen(e!) ? peak(e!) : maxVus(e!))} ${isOpen(e!) ? "iter/s" : "VUs"} · ${fmtSecs(duration(e!))}`;
-  const setE = (patch: Record<string, number>) => {
+      : `${fmtLevel(e!, isOpen(e!) ? peak(e!) : maxVus(e!))} · ${fmtSecs(duration(e!))}`;
+  const setE = (patch: Record<string, number | string>) => {
     if (!one) return;
     onChange({ ...c, scenarios: c.scenarios.map((s) => (s.id === one.id ? { ...s, executor: { ...s.executor, ...patch } as typeof s.executor } : s)) });
   };
@@ -485,13 +510,13 @@ function LoadChip({ config: c, onChange, onOpen, disabled }: { config: TestConfi
         {e?.kind === "vus" && (
           <div className="grid grid-cols-2 gap-2">
             <label className="text-small text-text3">Virtual users<NumberInput min={1} value={e.vus} onChange={(v) => setE({ vus: v ?? 0 })} /></label>
-            <label className="text-small text-text3">Duration<NumberInput suffix="s" min={1} value={e.duration_secs} onChange={(v) => setE({ duration_secs: v ?? 0 })} /></label>
+            <label className="text-small text-text3">Duration<DurationInput min={1} value={e.duration_secs} onChange={(v) => setE({ duration_secs: v ?? 0 })} /></label>
           </div>
         )}
         {e?.kind === "rate" && (
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-small text-text3">Iterations/s<NumberInput min={1} value={e.rate} onChange={(v) => setE({ rate: v ?? 0 })} /></label>
-            <label className="text-small text-text3">Duration<NumberInput suffix="s" min={1} value={e.duration_secs} onChange={(v) => setE({ duration_secs: v ?? 0 })} /></label>
+            <label className="text-small text-text3">Iterations<RateInput min={0} value={e.rate} unit={rateUnit(e)} onChange={(rate) => setE({ rate })} onUnit={(rate_unit) => setE({ rate_unit })} /></label>
+            <label className="text-small text-text3">Duration<DurationInput min={1} value={e.duration_secs} onChange={(v) => setE({ duration_secs: v ?? 0 })} /></label>
           </div>
         )}
         {e?.kind === "iterations" && (

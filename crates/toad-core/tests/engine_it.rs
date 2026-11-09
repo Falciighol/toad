@@ -142,7 +142,7 @@ async fn stop_keeps_partial_results() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn arrival_rate_within_5_percent() {
     let addr = spawn(MockConfig::default()).await;
-    let s = run_once(single(url(addr, "/"), Executor::Rate { rate: 500, duration_secs: 3, max_vus: 20 })).await;
+    let s = run_once(single(url(addr, "/"), Executor::Rate { rate: 500, rate_unit: RateUnit::Second, duration_secs: 3, max_vus: 20 })).await;
     assert!(s.capped);
     let total = s.totals.total as f64;
     assert!((total - 1500.0).abs() / 1500.0 <= 0.05, "total = {total}");
@@ -153,7 +153,7 @@ async fn arrival_rate_within_5_percent() {
 async fn coordinated_omission_is_corrected() {
     // 2 virtual users × 50 ms can start at most ~40 iterations/s; asking for 200/s builds a backlog.
     let addr = spawn(MockConfig { delay_ms: 50, ..Default::default() }).await;
-    let s = run_once(single(url(addr, "/"), Executor::Rate { rate: 200, duration_secs: 4, max_vus: 2 })).await;
+    let s = run_once(single(url(addr, "/"), Executor::Rate { rate: 200, rate_unit: RateUnit::Second, duration_secs: 4, max_vus: 2 })).await;
     let raw = s.latency_raw.p99;
     let corrected = s.latency_corrected.p99;
     assert!(raw < 70_000, "raw p99 {raw}");
