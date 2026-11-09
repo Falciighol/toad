@@ -3,14 +3,22 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   commands,
   events,
+  type Asset,
   type CommandError,
+  type DataFormat,
+  type DataPreview,
   type ExportFormat,
+  type FieldError,
+  type HostInfo,
+  type KeyValue,
   type RunError,
   type RunSummary,
+  type Sample,
   type Settings,
   type Snapshot,
   type TargetCheck,
   type TestConfig,
+  type TryResult,
 } from "../bindings";
 
 export class ApiError extends Error {
@@ -40,12 +48,19 @@ export const api = {
   listRuns: (): Promise<RunSummary[]> => commands.listRuns(),
   getRun: (runId: string): Promise<RunSummary> => unwrap(commands.getRun(runId)),
   deleteRun: (runId: string): Promise<null> => unwrap(commands.deleteRun(runId)),
-  exportRun: (runId: string, format: ExportFormat, path: string): Promise<null> =>
-    unwrap(commands.exportRun(runId, format, path)),
+  exportRun: (runId: string, format: ExportFormat, path: string): Promise<null> => unwrap(commands.exportRun(runId, format, path)),
   listTests: (): Promise<TestConfig[]> => unwrap(commands.listTests()),
   saveTest: (config: TestConfig): Promise<TestConfig> => unwrap(commands.saveTest(config)),
   duplicateTest: (id: string): Promise<TestConfig> => unwrap(commands.duplicateTest(id)),
   deleteTest: (id: string): Promise<null> => unwrap(commands.deleteTest(id)),
+  importAsset: (testId: string, path: string): Promise<Asset> => unwrap(commands.importAsset(testId, path)),
+  previewData: (testId: string, file: string, format: DataFormat, hasHeader: boolean): Promise<DataPreview> =>
+    unwrap(commands.previewData(testId, file, format, hasHeader)),
+  testHosts: (config: TestConfig): Promise<HostInfo[]> => unwrap(commands.testHosts(config)),
+  validateTest: (config: TestConfig): Promise<FieldError[]> => commands.validateTest(config),
+  tryFlow: (config: TestConfig, scenario: string | null = null): Promise<TryResult> => unwrap(commands.tryFlow(config, scenario)),
+  sendStep: (config: TestConfig, stepId: string, vars: KeyValue[]): Promise<TryResult> => unwrap(commands.sendStep(config, stepId, vars)),
+  getSamples: (runId: string): Promise<Sample[]> => unwrap(commands.getSamples(runId)),
   getSettings: (): Promise<Settings> => commands.getSettings(),
   saveSettings: (s: Settings): Promise<Settings> => unwrap(commands.saveSettings(s)),
 };

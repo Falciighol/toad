@@ -4,6 +4,9 @@
 //!
 //! Routes: any path → 200 with `--body-bytes` of payload (or 500 at `--error-rate`),
 //! `/status/{code}` → that status, `/redirect/{n}` → a chain of n redirects.
+//! Flow routes: `POST /login` (`{"user":"ada"}` → a token and a `sid` cookie), `GET /orders`
+//! (needs `Authorization: Bearer tok-…`), `GET /me` (needs the cookie), `/echo` (any method:
+//! returns what it received as JSON), `GET /xml`, `GET /redirect-cookie`.
 
 #[path = "../tests/common/mock.rs"]
 mod mock;

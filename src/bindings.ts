@@ -22,10 +22,26 @@ export const commands = {
 	/**  Write a run to `path`, which must have been chosen in the save dialog. */
 	exportRun: (runId: string, format: ExportFormat, path: string) => typedError<null, CommandError>(__TAURI_INVOKE("export_run", { runId, format, path })),
 	listTests: () => typedError<TestConfig[], CommandError>(__TAURI_INVOKE("list_tests")),
-	/**  Create (empty id) or update a saved test. Returns the stored version. */
+	/**
+	 *  Create (empty id) or update a saved test. Tests autosave, so this accepts unfinished
+	 *  tests; validation happens on Start. Returns the stored version.
+	 */
 	saveTest: (config: TestConfig) => typedError<TestConfig, CommandError>(__TAURI_INVOKE("save_test", { config })),
 	duplicateTest: (id: string) => typedError<TestConfig, CommandError>(__TAURI_INVOKE("duplicate_test", { id })),
 	deleteTest: (id: string) => typedError<null, CommandError>(__TAURI_INVOKE("delete_test", { id })),
+	/**  Copy a file chosen in the open dialog into the test's folder. */
+	importAsset: (testId: string, path: string) => typedError<Asset, CommandError>(__TAURI_INVOKE("import_asset", { testId, path })),
+	/**  Parse a data file in the test folder: columns, the first rows, and the row count. */
+	previewData: (testId: string, file: string, format: DataFormat, hasHeader: boolean) => typedError<DataPreview, CommandError>(__TAURI_INVOKE("preview_data", { testId, file, format, hasHeader })),
+	/**  Hosts a test touches, for the Review stage. */
+	testHosts: (config: TestConfig) => typedError<HostInfo[], CommandError>(__TAURI_INVOKE("test_hosts", { config })),
+	/**  The engine's own validation, for inline field errors. */
+	validateTest: (config: TestConfig) => __TAURI_INVOKE<FieldError[]>("validate_test", { config }),
+	/**  One virtual user through setup, init and one iteration of each scenario (or one scenario). */
+	tryFlow: (config: TestConfig, scenario: string | null) => typedError<TryResult, CommandError>(__TAURI_INVOKE("try_flow", { config, scenario })),
+	/**  Send one step with the given variables. */
+	sendStep: (config: TestConfig, stepId: string, vars: KeyValue[]) => typedError<TryResult, CommandError>(__TAURI_INVOKE("send_step", { config, stepId, vars })),
+	getSamples: (runId: string) => typedError<Sample[], CommandError>(__TAURI_INVOKE("get_samples", { runId })),
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	saveSettings: (settings: Settings) => typedError<Settings, CommandError>(__TAURI_INVOKE("save_settings", { settings })),
 };
@@ -38,12 +54,87 @@ export const events = {
 };
 
 /* Types */
-export type Body = {
-	kind: BodyKind,
-	content: string,
+export type ApiKeyLocation = "header" | "query";
+
+export type Asset = {
+	/**  Stored file name inside the test folder. */
+	file: string,
+	/**  The name the user's file had. */
+	name: string,
+	size: number,
 };
 
-export type BodyKind = "json" | "text";
+export type Auth = 
+/**  Use the test's default auth. */
+{ kind: "inherit" } | { kind: "none" } | { kind: "bearer"; token: string } | { kind: "basic"; username: string; password: string } | { kind: "api_key"; name: string; value: string; location: ApiKeyLocation };
+
+export type BodyKind = "json" | "xml" | "text" | "form" | "multipart" | "graphql" | "binary" | "raw";
+
+export type BodySpec = {
+	kind: BodyKind,
+	/**  JSON / XML / text / raw content, or the GraphQL query. */
+	content: string,
+	/**  Form and multipart fields. */
+	fields: FormField[],
+	/**  GraphQL variables (JSON). */
+	variables: string,
+	/**  Binary body: asset file name in the test folder. */
+	file: string | null,
+	/**  Content-Type to send. Empty: chosen from the kind. */
+	content_type: string,
+	gzip: boolean,
+};
+
+/**  An assertion on a response. */
+export type Check = {
+	id: string,
+	kind: CheckKind,
+	/**  JSONPath / XPath / header name; unused for status, body and latency. */
+	expr: string,
+	op: CheckOp,
+	/**  Expected value. `in_range` takes "min-max"; latency is in ms. */
+	value: string,
+	/**  When on, a failed check counts the request as failed; otherwise only as a check failure. */
+	fails_request: boolean,
+	enabled: boolean,
+};
+
+export type CheckKind = "status" | "body" | "json" | "xpath" | "header" | "latency";
+
+export type CheckOp = "equals" | "not_equals" | "contains" | "not_contains" | "matches" | "exists" | "missing" | "lt" | "lte" | "gt" | "gte" | "in_range";
+
+export type CheckResult = {
+	id: string,
+	label: string,
+	passed: boolean,
+	actual: string,
+};
+
+export type Clause = {
+	subject: ClauseSubject,
+	/**  Variable name (for `variable`). */
+	name: string,
+	op: ClauseOp,
+	value: string,
+};
+
+export type ClauseOp = "exists" | "missing" | "equals" | "not_equals" | "matches" | "lt" | "lte" | "gt" | "gte" | "ok" | "failed";
+
+export type ClauseSubject = "variable" | "prev_status" | "prev_outcome";
+
+/**  A client certificate (mTLS), PEM. Applies to hosts matching `host`. */
+export type ClientCert = {
+	id: string,
+	/**  Exact host, `*.example.com`, or empty for every host. */
+	host: string,
+	cert_file: string,
+	cert_name: string,
+	/**  Empty when the key is inside the certificate file. */
+	key_file: string,
+	key_name: string,
+};
+
+export type Cmp = "lt" | "lte" | "gt" | "gte";
 
 export type CommandError = {
 	code: ErrorCode,
@@ -51,7 +142,117 @@ export type CommandError = {
 	fields: FieldError[],
 };
 
-export type EndReason = "completed" | "stopped" | "failed";
+export type ConnectionSpec = {
+	keep_alive: boolean,
+	pool: PoolMode,
+	http: HttpVersion,
+	allow_invalid_certs: boolean,
+	host_overrides: HostOverride[],
+	client_certs: ClientCert[],
+	proxy: ProxySpec,
+};
+
+export type CookieMode = "jar" | "clear_before" | "no_jar";
+
+export type CookiePolicy = {
+	mode: JarMode,
+	clear_each_iteration: boolean,
+	seed: SeedCookie[],
+};
+
+/**  A CSV/JSON file copied into the test folder. Columns read as `{{name.column}}`. */
+export type DataFile = {
+	id: string,
+	name: string,
+	/**  Asset file name in the test folder. */
+	file: string,
+	original_name: string,
+	format: DataFormat,
+	has_header: boolean,
+	columns: string[],
+	secret_columns: string[],
+	rows: number,
+	distribution: Distribution,
+	on_exhausted: OnExhausted,
+};
+
+export type DataFileInfo = {
+	name: string,
+	rows: number,
+	hash: string,
+};
+
+export type DataFormat = "csv" | "json";
+
+export type DataPreview = {
+	format: DataFormat,
+	has_header: boolean,
+	/**  The delimiter used (CSV), as text. */
+	delimiter: string,
+	columns: string[],
+	rows: string[][],
+	row_count: number,
+	warnings: string[],
+};
+
+export type Defaults = {
+	/**  Available as `{{baseUrl}}` when no variable of that name exists. */
+	base_url: string,
+	headers: KeyValue[],
+	auth: Auth,
+	user_agent: string,
+	timeout_ms: number,
+	success_range: StatusRange,
+	follow_redirects: boolean,
+	max_redirects: number,
+	max_response_kb: number,
+};
+
+export type Distribution = "sequential" | "random" | "unique_per_vu";
+
+export type EndReason = "completed" | "stopped" | "aborted" | "failed";
+
+export type EndpointLive = {
+	step_id: string,
+	total: number,
+	failed: number,
+	/**  Requests per second over the last interval. */
+	rps: number | null,
+	p95: number,
+	p99: number,
+	/**  p99 over the whole run so far. */
+	p99_run: number,
+	skipped: number,
+	not_taken: number,
+};
+
+/**  Everything measured for one request step. */
+export type EndpointSummary = {
+	step_id: string,
+	name: string,
+	phase: StepPhase,
+	scenario_id: string | null,
+	group_id: string | null,
+	method: string,
+	/**  URL template as written (one row per step, whatever the variables resolved to). */
+	url: string,
+	totals: Totals,
+	outcomes: OutcomeCounts,
+	check_failures: RuleCount[],
+	extract_failures: RuleCount[],
+	/**  Corrected latency (equal to raw outside open-model scenarios). */
+	latency: Percentiles,
+	latency_raw: Percentiles,
+	ttfb: Percentiles,
+	bytes: number,
+	spectrum: SpectrumPoint[],
+	series: StepPoint[],
+};
+
+export type Environment = {
+	id: string,
+	name: string,
+};
 
 export type ErrorCode = "invalid" | "needs_confirmation" | "busy" | "dns" | "not_found" | "forbidden" | "io";
 
@@ -60,33 +261,137 @@ export type ErrorCount = {
 	count: number,
 };
 
-export type ErrorKind = "timeout" | "connect" | "dns" | "tls" | "body_read" | "status" | "redirect" | "other";
+export type ErrorKind = "timeout" | "connect" | "dns" | "tls" | "body_read" | "status" | "redirect" | "check" | "other";
+
+/**  How a scenario's load is generated. */
+export type Executor = 
+/**  Closed model: a fixed number of virtual users looping. */
+{ kind: "vus"; vus: number; duration_secs: number } | 
+/**  Closed model with stages (ramp up, hold, ramp down). */
+{ kind: "ramping_vus"; start: number; stages: Stage[] } | 
+/**  Open model: iterations started per second, regardless of how fast the target answers. */
+{ kind: "rate"; rate: number; duration_secs: number; max_vus: number } | 
+/**  Open model with staged rates. */
+{ kind: "ramping_rate"; start: number; stages: Stage[]; max_vus: number } | 
+/**  A fixed number of iterations shared by the virtual users. */
+{ kind: "iterations"; vus: number; iterations: number; max_duration_secs: number };
 
 export type ExportFormat = "json" | "csv";
+
+export type ExtractPick = "first" | "last" | "random" | "all" | "index";
+
+export type ExtractResult = {
+	id: string,
+	var: string,
+	value: string | null,
+	secret: boolean,
+	error: string | null,
+};
+
+export type ExtractSource = "json" | "xpath" | "header" | "cookie" | "regex" | "status" | "latency";
+
+/**  Captures a value from a response into a variable for later steps. */
+export type Extractor = {
+	id: string,
+	var: string,
+	source: ExtractSource,
+	/**  JSONPath, XPath, header or cookie name, or regex (first group is the value). */
+	expr: string,
+	pick: ExtractPick,
+	index: number,
+	default: string,
+	on_missing: OnMissing,
+	secret: boolean,
+	enabled: boolean,
+};
 
 export type FieldError = {
 	field: string,
 	message: string,
 };
 
-export type Header = {
+export type FlowItem = { kind: "request"; step: RequestStep } | { kind: "group"; group: ParallelGroup } | { kind: "pause"; pause: Pause };
+
+export type FormField = {
+	name: string,
+	/**  Text value, or for a file field the asset file name in the test folder. */
+	value: string,
+	enabled: boolean,
+	file: boolean,
+};
+
+export type Hop = {
+	status: number,
+	url: string,
+};
+
+/**  A host a test touches, for the Review stage. */
+export type HostInfo = {
+	host: string,
+	source: HostSource,
+	/**  Steps that reach it (labels). */
+	steps: string[],
+	check: TargetCheck | null,
+	error: string | null,
+};
+
+export type HostOverride = {
+	host: string,
+	/**  IP address (optionally with :port) the host resolves to for this test. */
+	address: string,
+};
+
+export type HostSource = "static" | "runtime" | "proxy";
+
+export type HttpVersion = "auto" | "http1";
+
+export type JarMode = "per_vu" | "shared" | "off";
+
+/**  A name/value row with an on/off switch: headers, query params, cookies, values. */
+export type KeyValue = {
 	name: string,
 	value: string,
 	enabled: boolean,
 };
 
-export type LoadSpec = {
-	concurrency: number,
-	stop: StopCondition,
-	rps_cap: number | null,
-	ramp_up_secs: number | null,
-	timeout_ms: number,
-	success_range: StatusRange,
-	follow_redirects: boolean,
-	allow_invalid_certs: boolean,
+export type MatchMode = "all" | "any";
+
+export type OnExhausted = "wrap" | "stop_vu" | "stop_run";
+
+export type OnMissing = "fail_step" | "use_default" | "skip_iteration";
+
+/**  Requests and iterations that never produced a latency sample, by cause. */
+export type OutcomeCounts = {
+	/**  Not sent: a variable it needs was missing (an upstream extraction failed). */
+	skipped: number,
+	/**  Not sent: its Run if rule was false. A normal path, not an error. */
+	not_taken: number,
+	/**  Not sent: the host wasn't loopback or confirmed. */
+	blocked: number,
+	/**  Not sent: the request couldn't be built (bad URL or header after templating). */
+	build_errors: number,
+	/**  Arrival-rate iterations not started because max virtual users was reached. */
+	dropped: number,
+	/**  Requests with at least one failed check (counted even when the check doesn't fail the request). */
+	check_failures: number,
+	extract_failures: number,
+	iterations: number,
+	iterations_failed: number,
 };
 
-export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+/**  Members fire together; the group ends when all have finished. */
+export type ParallelGroup = {
+	id: string,
+	name: string,
+	steps: RequestStep[],
+	run_if: RunIf | null,
+};
+
+export type Pause = {
+	id: string,
+	think: ThinkTime,
+	run_if: RunIf | null,
+};
 
 export type Percentiles = {
 	min: number,
@@ -100,15 +405,60 @@ export type Percentiles = {
 	count: number,
 };
 
-export type Phase = "ramping" | "running" | "stopping" | "done" | "failed";
+export type Phase = "setup" | "ramping" | "running" | "stopping" | "teardown" | "done" | "failed";
 
-export type RequestSpec = {
-	method: Method,
+export type PoolMode = "shared" | "per_vu";
+
+export type ProxyKind = "http" | "https" | "socks5";
+
+export type ProxySpec = {
+	enabled: boolean,
+	kind: ProxyKind,
+	/**  host:port */
+	address: string,
+	username: string,
+	password: string,
+	/**  Comma-separated hosts that bypass the proxy. */
+	no_proxy: string,
+};
+
+export type RequestStep = {
+	id: string,
+	name: string,
+	/**  GET, POST, … or a custom token. */
+	method: string,
 	url: string,
-	headers: Header[],
-	body: Body | null,
-	/**  Stored in plain text. Sent as `Authorization: Bearer <token>`. */
-	bearer: string | null,
+	params: KeyValue[],
+	headers: KeyValue[],
+	cookies: KeyValue[],
+	cookie_mode: CookieMode,
+	body: BodySpec | null,
+	auth: Auth,
+	/**  Values computed once before the request (`orderId = {{$uuid}}`) for reuse in it. */
+	values: KeyValue[],
+	extract: Extractor[],
+	checks: Check[],
+	run_if: RunIf | null,
+	timeout_ms: number | null,
+	follow_redirects: boolean | null,
+	/**  Most of a response body read for extraction and checks, in KB. */
+	max_response_kb: number | null,
+	/**  Mix scenarios: relative weight. */
+	weight: number,
+};
+
+export type RuleCount = {
+	id: string,
+	count: number,
+};
+
+export type RunEnv = {
+	toad_version: string,
+	os: string,
+	cores: number,
+	environment: string,
+	proxied: boolean,
+	data_files: DataFileInfo[],
 };
 
 export type RunError = {
@@ -117,6 +467,12 @@ export type RunError = {
 };
 
 export type RunFinished = RunSummary;
+
+/**  Declarative condition: a step whose rule is false is "not taken" (a normal path). */
+export type RunIf = {
+	mode: MatchMode,
+	clauses: Clause[],
+};
 
 export type RunSnapshot = Snapshot;
 
@@ -134,10 +490,127 @@ export type RunSummary = {
 	duration_ms: number,
 	achieved_rps: number | null,
 	bytes: number,
-	/**  Whether an RPS cap was active (corrected latency is the headline only then). */
+	/**  Whether an open-model scenario ran (corrected latency is the headline only then). */
 	capped: boolean,
 	warnings: Warning[],
 	series: SecondPoint[],
+	outcomes?: OutcomeCounts,
+	endpoints?: EndpointSummary[],
+	scenarios?: ScenarioSummary[],
+	verdict?: ThresholdResult[],
+	/**  Threshold that aborted the run. */
+	aborted_by?: string | null,
+	env?: RunEnv,
+	samples?: SamplesInfo,
+	/**  Stored before format v2: per-step data doesn't exist. */
+	legacy?: boolean,
+};
+
+/**  A captured request with its response and context. */
+export type Sample = {
+	id: number,
+	step_id: string,
+	scenario_id: string | null,
+	reason: SampleReason,
+	outcome: StepOutcome,
+	error_kind: ErrorKind | null,
+	error: string | null,
+	/**  ms since run start. */
+	t_ms: number,
+	vu: number,
+	iteration: number,
+	latency_us: number,
+	raw_us: number,
+	ttfb_us: number,
+	request: SampleRequest | null,
+	response: SampleResponse | null,
+	redirects: Hop[],
+	vars: KeyValue[],
+	checks: CheckResult[],
+	extracted: ExtractResult[],
+	/**  Earlier steps of the same iteration. */
+	trace: TraceEntry[],
+	/**  Run if outcome when the step had a rule. */
+	branch: boolean | null,
+};
+
+export type SampleReason = "failure" | "slow" | "random" | "try";
+
+export type SampleRequest = {
+	method: string,
+	url: string,
+	headers: KeyValue[],
+	body: string,
+	body_bytes: number,
+	truncated: boolean,
+	binary: boolean,
+};
+
+export type SampleResponse = {
+	status: number,
+	headers: KeyValue[],
+	body: string,
+	body_bytes: number,
+	truncated: boolean,
+	binary: boolean,
+};
+
+export type SamplesInfo = {
+	count: number,
+	bytes: number,
+	/**  A cap was hit, so some failures or slow requests weren't kept. */
+	truncated: boolean,
+	/**  Bodies weren't stored (Settings). */
+	bodies: boolean,
+};
+
+export type Scenario = {
+	id: string,
+	name: string,
+	kind: ScenarioKind,
+	enabled: boolean,
+	/**  Runs once per virtual user, before its first iteration (e.g. log in per user). */
+	init: FlowItem[],
+	steps: FlowItem[],
+	executor: Executor,
+	start_offset_secs: number,
+	/**  How long in-flight iterations may finish after the scenario ends. */
+	graceful_stop_secs: number,
+	/**  Default think time after each request step (flows only). */
+	think: ThinkTime | null,
+};
+
+export type ScenarioKind = "flow" | "mix";
+
+export type ScenarioLive = {
+	id: string,
+	vus: number,
+	iterations: number,
+	dropped: number,
+	/**  The profile's planned value now: VUs (closed) or iterations/s (open). */
+	target: number | null,
+};
+
+/**  One scenario's second: what its load profile achieved, for planned-vs-achieved. */
+export type ScenarioPoint = {
+	t_s: number,
+	/**  Busy virtual users at the end of the second. */
+	vus: number,
+	/**  Iterations started in the second. */
+	iterations: number,
+};
+
+export type ScenarioSummary = {
+	id: string,
+	name: string,
+	iterations: number,
+	iterations_failed: number,
+	dropped: number,
+	peak_vus: number,
+	iteration_duration: Percentiles,
+	open_model: boolean,
+	/**  Per-second achieved load (empty for runs recorded before it existed). */
+	series?: ScenarioPoint[],
 };
 
 export type SecondPoint = {
@@ -153,6 +626,18 @@ export type SecondPoint = {
 	raw_p50: number,
 	raw_p95: number,
 	raw_p99: number,
+	/**  Active virtual users at the end of the second. */
+	vus?: number,
+	/**  Iterations started in the second. */
+	iterations?: number,
+};
+
+export type SeedCookie = {
+	domain: string,
+	path: string,
+	name: string,
+	value: string,
+	secure: boolean,
 };
 
 export type Settings = {
@@ -164,6 +649,14 @@ export type Settings = {
 	store_secrets_in_history: boolean,
 	/**  Treat RFC 1918 / ULA addresses like loopback (skip the confirmation). */
 	private_ranges_as_local: boolean,
+	/**  Per endpoint: failures kept per error kind. */
+	sample_failures?: number,
+	sample_slowest?: number,
+	sample_random?: number,
+	sample_body_kb?: number,
+	sample_run_mb?: number,
+	/**  Store request/response bodies in samples. */
+	sample_bodies?: boolean,
 };
 
 export type Snapshot = {
@@ -179,8 +672,9 @@ export type Snapshot = {
 	active_workers: number,
 	bytes: number,
 	rps_interval: number | null,
+	/**  Planned rate for open-model runs: iterations/s summed over scenarios. */
 	target_rps: number | null,
-	/**  Latency measured from the scheduled send time (equal to raw when uncapped). */
+	/**  Latency measured from the scheduled send time (equal to raw when no open-model scenario). */
 	lat_interval: Percentiles,
 	lat_interval_raw: Percentiles,
 	lat_cumulative: Percentiles,
@@ -190,6 +684,22 @@ export type Snapshot = {
 	/**  Present on the snapshot that closes a full second. */
 	second: SecondPoint | null,
 	warnings: Warning[],
+	outcomes: OutcomeCounts,
+	endpoints: EndpointLive[],
+	scenarios: ScenarioLive[],
+	thresholds: ThresholdResult[],
+};
+
+/**  A point on the percentile spectrum: `q` in 0..1, latency in µs. */
+export type SpectrumPoint = {
+	q: number | null,
+	us: number,
+};
+
+/**  One leg of a staged profile: move linearly to `target` over `duration_secs`. */
+export type Stage = {
+	duration_secs: number,
+	target: number,
 };
 
 export type StatusCount = {
@@ -202,9 +712,23 @@ export type StatusRange = {
 	max: number,
 };
 
-export type StopCondition = 
-/**  Total requests, including those sent during ramp-up. */
-{ kind: "requests"; count: number } | { kind: "duration"; secs: number };
+export type StepOutcome = "ok" | "failed" | "skipped" | "not_taken" | "blocked" | "build_error" | "cancelled";
+
+export type StepPhase = "setup" | "init" | "main" | "teardown";
+
+/**
+ *  One endpoint's second. `hist` is a sparse latency histogram: pairs of
+ *  [bucket index, count] over [`crate::metrics::BUCKETS`] (corrected latency).
+ */
+export type StepPoint = {
+	t_s: number,
+	ok: number,
+	failed: number,
+	p50: number,
+	p95: number,
+	p99: number,
+	hist: number[],
+};
 
 export type TargetCheck = {
 	host: string,
@@ -215,14 +739,60 @@ export type TargetCheck = {
 	approved: boolean,
 };
 
+/**  A saved test (format v2). Deserializes v1 files too (see [`legacy`]). */
 export type TestConfig = {
+	version: number,
 	id: string,
 	name: string,
-	request: RequestSpec,
-	load: LoadSpec,
 	/**  Epoch milliseconds. */
 	created_at: number,
 	updated_at: number,
+	defaults: Defaults,
+	environments: Environment[],
+	/**  Id of the environment used when running. Empty: none. */
+	active_env: string,
+	variables: Variable[],
+	data: DataFile[],
+	cookies: CookiePolicy,
+	connection: ConnectionSpec,
+	/**  Runs once before load starts; extracted values are shared by every virtual user. */
+	setup: RequestStep[],
+	/**  Runs once after load ends. */
+	teardown: RequestStep[],
+	scenarios: Scenario[],
+	thresholds: Threshold[],
+	/**  Seconds at the start excluded from the verdict statistics (still shown). */
+	warmup_secs: number,
+};
+
+export type ThinkTime = { kind: "fixed"; ms: number } | { kind: "uniform"; min_ms: number; max_ms: number } | { kind: "normal"; mean_ms: number; sd_ms: number };
+
+/**  Pass/fail criterion. Latency values are ms, rates are percent, rps is requests/s. */
+export type Threshold = {
+	id: string,
+	metric: ThresholdMetric,
+	/**  "" for the whole test, "scenario:<id>" or "step:<id>". */
+	scope: string,
+	op: Cmp,
+	value: number | null,
+	abort: boolean,
+	/**  Not evaluated for aborting before this many seconds. */
+	delay_secs: number,
+	enabled: boolean,
+};
+
+export type ThresholdMetric = "p50" | "p90" | "p95" | "p99" | "max" | "error_rate" | "check_pass_rate" | "rps" | "dropped";
+
+export type ThresholdResult = {
+	id: string,
+	/**  e.g. "p95 < 300 ms · Checkout" */
+	label: string,
+	observed: number | null,
+	passed: boolean,
+	/**  When it first failed during the run (live evaluation), ms since start. */
+	crossed_at_ms: number | null,
+	/**  Too few samples to judge yet. */
+	pending: boolean,
 };
 
 export type Totals = {
@@ -234,15 +804,45 @@ export type Totals = {
 	error_counts: ErrorCount[],
 };
 
+/**  One step of a virtual user's iteration, without bodies. */
+export type TraceEntry = {
+	step_id: string,
+	name: string,
+	outcome: StepOutcome,
+	status: number | null,
+	latency_us: number,
+	t_ms: number,
+	note: string | null,
+};
+
+/**  Result of Try once / Send once. */
+export type TryResult = {
+	steps: Sample[],
+	error: string | null,
+	/**  Variables in scope at the end (secret values redacted). */
+	vars: KeyValue[],
+};
+
+export type Variable = {
+	name: string,
+	secret: boolean,
+	/**  Environment id → value. */
+	values: { [key in string]: string },
+};
+
 export type Warning = 
-/**  Achieved RPS is well below target while server latency is flat. */
+/**  Achieved rate is well below target while server latency is flat. */
 { kind: "toad_bottleneck" } | 
 /**  The OS refused to open more sockets (EMFILE). */
 { kind: "fd_limit" } | 
 /**  The async runtime is lagging (aggregator tick late by >50 ms). */
 { kind: "scheduler_lag" } | 
-/**  Not a Toad problem: concurrency is too low to reach the RPS target. */
-{ kind: "concurrency_too_low"; needed: number };
+/**  Not a Toad problem: max virtual users is too low to reach the rate. */
+{ kind: "concurrency_too_low"; needed: number } | 
+/**  Arrival-rate iterations were dropped because no virtual user was free. */
+{ kind: "dropped_iterations"; scenario: string; count: number } | 
+/**  A data file ran out of rows. */
+{ kind: "data_exhausted"; file: string };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

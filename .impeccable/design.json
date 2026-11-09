@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-06T00:00:00Z",
+  "title": "Design System: Toad",
+  "extensions": {
+    "colorMeta": {
+      "ground-dark": { "role": "neutral", "displayName": "True Black", "canonical": "#000000", "tonalRamp": ["#0e0f13", "#3a3c3f", "#4e5052", "#616263", "#939494", "#acacac", "#e6e4e1", "#fcfaf5"] },
+      "ground-light": { "role": "neutral", "displayName": "Warm Paper", "canonical": "GROUND[100]: L 0.958, chroma 0.85×0.009, hue 92", "tonalRamp": ["#0e0f13", "#3a3c3f", "#4e5052", "#616263", "#939494", "#acacac", "#e6e4e1", "#fcfaf5"] },
+      "panel-dark": { "role": "neutral", "displayName": "Panel Black", "canonical": "#0e0e10" },
+      "chrome-light": { "role": "neutral", "displayName": "Paper Chrome", "canonical": "GROUND[50]" },
+      "text-dark": { "role": "neutral", "displayName": "Paper Ink (dark text)", "canonical": "GROUND[100]" },
+      "text-light": { "role": "neutral", "displayName": "Graphite Ink", "canonical": "GROUND[900]" },
+      "accent-dark": { "role": "primary", "displayName": "Mint", "canonical": "brand ramp 400, hue 167, chroma 0.13", "tonalRamp": ["#003223", "#005d44", "#007154", "#008562", "#009f77", "#52b692", "#bce3d2", "#edf8f3"] },
+      "accent-light": { "role": "primary", "displayName": "Deep Mint", "canonical": "brand ramp 600, hue 167, chroma 0.13", "tonalRamp": ["#003223", "#005d44", "#007154", "#008562", "#009f77", "#52b692", "#bce3d2", "#edf8f3"] },
+      "accent-soft-dark": { "role": "primary", "displayName": "Mint Wash", "canonical": "brand 400 at 14%" },
+      "accent-soft-light": { "role": "primary", "displayName": "Mint Wash", "canonical": "brand 500 at 12%" },
+      "success-light": { "role": "secondary", "displayName": "Leaf", "canonical": "status ramp 700, hue 136 (Mint pack)", "tonalRamp": ["#1a300d", "#315b18", "#3d6f1f", "#488226", "#5e993d", "#7eb166", "#cae0c0", "#f1f7ee"] },
+      "danger-light": { "role": "secondary", "displayName": "Brick", "canonical": "status ramp 700, hue 30", "tonalRamp": ["#4b140d", "#8b2318", "#a92c1f", "#c43627", "#e14e3d", "#f27664", "#ffc9c0", "#fff2ef"] },
+      "warning-light": { "role": "secondary", "displayName": "Ochre", "canonical": "status ramp 700, hue 78", "tonalRamp": ["#392500", "#684700", "#7f5700", "#946600", "#b17b00", "#cb9637", "#ecd4b1", "#fbf4ea"] },
+      "info-light": { "role": "secondary", "displayName": "Harbor Blue", "canonical": "status ramp 700, hue 232", "tonalRamp": ["#002e41", "#005675", "#00698e", "#007ba6", "#0093c6", "#4facd9", "#badef2", "#edf7fd"] },
+      "series1-light": { "role": "tertiary", "displayName": "Series Orange", "canonical": "SERIES_CANDIDATES hue 50, chroma 0.16; fill stop 600 light / 400 dark", "tonalRamp": ["#451c01", "#7d3700", "#974500", "#b05100", "#d0640f", "#e2854e", "#f9ceb7", "#fff2ec"] },
+      "series2-light": { "role": "tertiary", "displayName": "Series Violet", "canonical": "SERIES_CANDIDATES hue 288, chroma 0.16", "tonalRamp": ["#28224b", "#4d408c", "#5e4eaa", "#6e5cc5", "#8473e1", "#9d92ef", "#d5d3fd", "#f4f4ff"] },
+      "series3-light": { "role": "tertiary", "displayName": "Series Blue", "canonical": "SERIES_CANDIDATES hue 232, chroma 0.13", "tonalRamp": ["#002e41", "#005675", "#00698e", "#007ba6", "#0093c6", "#4facd9", "#badef2", "#edf7fd"] }
+    },
+    "accentPacks": [
+      { "name": "violet", "label": "Violet", "brandHue": 288, "chroma": 0.165, "swatch": "#9d91f1" },
+      { "name": "blue", "label": "Blue", "brandHue": 260, "chroma": 0.145, "swatch": "#73a1ec", "statusShift": { "info": 205 } },
+      { "name": "mint", "label": "Mint", "brandHue": 167, "chroma": 0.13, "swatch": "#52b692", "default": true, "statusShift": { "success": 136 } },
+      { "name": "lime", "label": "Lime", "brandHue": 125, "chroma": 0.165, "swatch": "#8daf46", "statusShift": { "success": 158 } },
+      { "name": "amber", "label": "Amber", "brandHue": 79, "chroma": 0.145, "swatch": "#c9973c", "statusShift": { "warning": 106 } },
+      { "name": "coral", "label": "Coral", "brandHue": 34, "chroma": 0.17, "swatch": "#eb7c63", "statusShift": { "danger": 6 } }
+    ],
+    "paletteRules": {
+      "source": "src/lib/theme.ts palette(theme, accent), applied to :root at startup; src/index.css holds first-paint values for Mint",
+      "statusInk": "ramp 300 in dark, 700 in light; soft = ramp 500 at 12%",
+      "fills": "ramp 400 in dark, 600 in light (accent, danger-fill, series)",
+      "statusSeparation": "an accent pack moves any status hue within 26 degrees of its brand hue",
+      "seriesSeparation": "series = first SERIES_CANDIDATES (50, 288, 232, 340, 110, 185) at least 60 degrees from the brand hue"
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (metric value)", "purpose": "Stat card values: Geist Mono 500, tabular. The largest text is a number." },
+      "title": { "displayName": "Title", "purpose": "Page and section titles, inline test name, wordmark." },
+      "body": { "displayName": "Body", "purpose": "Default interface text, buttons, tabs, inputs, menus." },
+      "label": { "displayName": "Label / Small", "purpose": "Field labels, card titles, pills, hints, errors, small buttons." },
+      "micro": { "displayName": "Micro", "purpose": "Counts, Kbd, legends, axis ticks, secondary outline lines; 600 uppercase tracked only as a list-group heading." },
+      "mono-value": { "displayName": "Mono value", "purpose": "Every literal value, URL, header, method, variable and number, with tabular figures." }
+    },
+    "shadows": [
+      { "name": "pop-dark", "value": "0 18px 48px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.04)", "purpose": "Floating surfaces (popovers, menus, dialogs, toasts, chart tooltips) in dark." },
+      { "name": "pop-light", "value": "0 18px 48px rgb(40 30 10 / 0.16), 0 0 0 1px rgb(0 0 0 / 0.05)", "purpose": "Floating surfaces in light." },
+      { "name": "segment-lift", "value": "0 1px 2px rgb(0 0 0 / 0.12)", "purpose": "The chosen segment of a segmented control only." },
+      { "name": "selection-ring", "value": "inset 0 0 0 1px var(--accent)", "purpose": "Selected outline steps and picked rows, on the accent wash." }
+    ],
+    "focus": { "value": "outline: 2px solid var(--accent); outline-offset: 2px", "purpose": "Every focusable control; fields wear it around the whole field; invalid fields switch it to danger." },
+    "motion": [
+      { "name": "pop-in", "value": "200ms cubic-bezier(0.4, 0, 0.2, 1); from opacity 0, translateY(8px) scale(0.98)", "purpose": "Popovers, menus and dialogs appearing. Disabled under prefers-reduced-motion." },
+      { "name": "state-colors", "value": "transition-colors (150ms default)", "purpose": "Hover and selection fills on buttons, rows, tabs and rail items." },
+      { "name": "switch-thumb", "value": "transform 150ms", "purpose": "Toggle thumb travel." }
+    ],
+    "breakpoints": [
+      { "name": "rail-collapse", "value": "max-width: 1200px", "purpose": "Stage rail collapses from 208px to a 56px icon rail; issue counts become a danger dot." },
+      { "name": "window-min", "value": "980x640" },
+      { "name": "window-default", "value": "1320x860" }
+    ],
+    "layout": {
+      "appHeader": "44px chrome bar",
+      "testHeader": "48px chrome bar",
+      "footer": "28px chrome bar with the safety line",
+      "stageRail": "208px, collapses to 56px",
+      "flowOutline": "288px chrome column",
+      "pageColumn": "max-width 1024px, padding 28px 32px",
+      "controlHeight": "32px (small 26px, icon 28/24px)"
+    },
+    "charts": {
+      "axis": "stroke var(--text4), 11px Geist Mono, no tick or axis lines; horizontal grid var(--grid)",
+      "ticks": "0-based, round 1/2/2.5/5 x 10^n steps with 8% headroom; one precision per axis",
+      "tooltip": "panel, 1px line2, 12px radius, pop shadow, 12px mono",
+      "legend": "required on any chart with more than one line; 16px line swatches, dashed for plans and targets",
+      "markers": "vertical marker labels step down in three rows",
+      "lines": "series 2px; plan dashed accent; achieved-over-plan solid var(--text) 1.75px; target/reference dashed var(--text4) 1.5px"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Start, and the single primary action of a dialog. The only accent-filled button on screen.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" aria-hidden=\"true\"><path d=\"M7 4.5v15l12-7.5z\" fill=\"currentColor\"/></svg>Start</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2, rgb(255 255 255 / 0.1)); background: transparent; color: var(--text2, #d3d2d1); font: 500 13px/18px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); white-space: nowrap; transition: background-color .15s, border-color .15s, color .15s; } .ds-btn-primary { border-color: transparent; background: var(--accent, #52b692); color: var(--on-accent, #0e0f13); font-weight: 600; } .ds-btn-primary:hover { background: var(--accent-hover, #91d1b6); } .ds-btn:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; } .ds-btn:disabled { opacity: .45; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "The default button: hairline edge that brightens and fills on hover.",
+      "html": "<button class=\"ds-btn-ghost\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M13 3 5 13.5h6L10 21l8-10.5h-6z\"/></svg>Try once</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2, rgb(255 255 255 / 0.1)); background: transparent; color: var(--text2, #d3d2d1); font: 500 13px/18px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); transition: background-color .15s, border-color .15s, color .15s; } .ds-btn-ghost:hover { border-color: var(--line3, rgb(255 255 255 / 0.16)); background: var(--raised, rgb(255 255 255 / 0.04)); color: var(--text, #f3f1eb); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Transparent field with a line2 edge, line3 on hover, accent ring on focus, danger when invalid.",
+      "html": "<label class=\"ds-label\">Timeout<input class=\"ds-input\" value=\"30 s\"></label>",
+      "css": ".ds-label { display: block; font: 500 12px/16px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); color: var(--text2, #d3d2d1); } .ds-input { display: block; margin-top: 6px; width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line2, rgb(255 255 255 / 0.1)); background: transparent; color: var(--text, #f3f1eb); font: 400 13px/18px var(--mono, 'Geist Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; transition: border-color .15s; } .ds-input:hover { border-color: var(--line3, rgb(255 255 255 / 0.16)); } .ds-input:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; } .ds-input[aria-invalid=true] { border-color: var(--danger, #fea697); }"
+    },
+    {
+      "name": "Stage Rail",
+      "kind": "nav",
+      "refersTo": "rail-item-active",
+      "description": "Chrome rail of stages with summaries; the active item is a full accent wash with an accent-ink icon and no side bar.",
+      "html": "<nav class=\"ds-rail\"><button class=\"ds-rail-item ds-on\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"3.5\" width=\"8\" height=\"5\" rx=\"1.5\"/><rect x=\"12\" y=\"15.5\" width=\"8\" height=\"5\" rx=\"1.5\"/><path d=\"M8 8.5v3.5a2 2 0 0 0 2 2h6v1.5\"/></svg><span><b>Flow</b><small>8 steps · 2 scenarios</small></span></button><button class=\"ds-rail-item\"><svg viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3.5 19.5h17M5 16l4-5 4 2.5 6-8\"/></svg><span><b>Load</b><small>up to 60 VUs</small></span></button></nav>",
+      "css": ".ds-rail { display: flex; flex-direction: column; gap: 2px; width: 208px; padding: 8px; background: var(--chrome, #000); border-right: 1px solid var(--line, rgb(255 255 255 / 0.06)); } .ds-rail-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text3, #acacac); text-align: left; transition: background-color .15s; } .ds-rail-item span { display: flex; flex-direction: column; } .ds-rail-item b { font: 500 13px/18px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); color: var(--text, #f3f1eb); } .ds-rail-item small { font: 400 11px/14px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); color: var(--text3, #acacac); } .ds-rail-item svg { margin-top: 2px; flex-shrink: 0; } .ds-rail-item:hover { background: var(--raised, rgb(255 255 255 / 0.04)); } .ds-rail-item.ds-on { background: var(--accent-soft, rgb(82 182 146 / 0.14)); } .ds-rail-item.ds-on svg { color: var(--accent-ink, #91d1b6); } .ds-rail-item:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; }"
+    },
+    {
+      "name": "Tabs",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Underlined tabs; active label in text with a 2px accent underline; counts as round mono badges.",
+      "html": "<div class=\"ds-tabs\"><button class=\"ds-tab\">Headers</button><button class=\"ds-tab ds-on\">Body</button><button class=\"ds-tab\">Extract <span class=\"ds-count\">1</span></button></div>",
+      "css": ".ds-tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--line, rgb(255 255 255 / 0.06)); } .ds-tab { display: flex; align-items: center; gap: 6px; height: 34px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text3, #acacac); font: 500 13px/18px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); transition: color .15s; } .ds-tab:hover { color: var(--text, #f3f1eb); } .ds-tab.ds-on { color: var(--text, #f3f1eb); border-bottom-color: var(--accent, #52b692); } .ds-tab:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; } .ds-count { padding: 0 6px; border-radius: 9999px; background: var(--raised2, rgb(255 255 255 / 0.08)); color: var(--text3, #acacac); font: 400 11px/14px var(--mono, 'Geist Mono', monospace); }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "chip",
+      "refersTo": "segmented-option-selected",
+      "description": "Two to four choices in a raised2 track; the chosen one sits on seg with a 1px lift.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\"><button class=\"ds-seg-opt ds-on\" role=\"radio\" aria-checked=\"true\">Sequence</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">Mix</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--raised2, rgb(255 255 255 / 0.08)); } .ds-seg-opt { height: 26px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--text3, #acacac); font: 500 13px/18px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); transition: color .15s, background-color .15s; } .ds-seg-opt:hover { color: var(--text, #f3f1eb); } .ds-seg-opt.ds-on { background: var(--seg, rgb(255 255 255 / 0.12)); color: var(--text, #f3f1eb); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); } .ds-seg-opt:focus-visible { outline: 2px solid var(--accent, #52b692); outline-offset: 2px; }"
+    },
+    {
+      "name": "Pills",
+      "kind": "chip",
+      "refersTo": "pill-neutral",
+      "description": "A state as a tinted round pill; tones neutral, accent, success, info, warning, danger.",
+      "html": "<span class=\"ds-pill\">Stopped</span> <span class=\"ds-pill ds-pill-success\">Passed</span> <span class=\"ds-pill ds-pill-danger\">2 breached</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: var(--raised2, rgb(255 255 255 / 0.08)); color: var(--text3, #acacac); font: 500 12px/16px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); white-space: nowrap; } .ds-pill-success { background: var(--success-soft, rgb(94 153 61 / 0.12)); color: var(--success, #a9cd99); } .ds-pill-danger { background: var(--danger-soft, rgb(225 78 61 / 0.12)); color: var(--danger, #fea697); font-weight: 600; }"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "stat",
+      "description": "A hairline card on the window with a metric in mono display; no shadow.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-label\">p99 latency</div><div class=\"ds-stat-value\">184 ms</div><div class=\"ds-stat-sub\">raw 171 ms</div></div>",
+      "css": ".ds-stat { padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line, rgb(255 255 255 / 0.06)); background: var(--panel, #0e0e10); } .ds-stat-label { font: 400 12px/16px var(--sans, 'Instrument Sans Variable', system-ui, sans-serif); color: var(--text3, #acacac); } .ds-stat-value { margin-top: 4px; font: 500 20px/26px var(--mono, 'Geist Mono', monospace); font-variant-numeric: tabular-nums; color: var(--text, #f3f1eb); } .ds-stat-sub { margin-top: 2px; font: 400 12px/16px var(--mono, 'Geist Mono', monospace); font-variant-numeric: tabular-nums; color: var(--text4, #939494); }"
+    },
+    {
+      "name": "Template Tokens",
+      "kind": "custom",
+      "refersTo": "template-variable",
+      "description": "Inline mono template text: variables info, generators neutral, pending warning, unknown danger.",
+      "html": "<code class=\"ds-tpl\"><span class=\"ds-var\">{{baseUrl}}</span>/users/<span class=\"ds-gen\">{{$uuid}}</span>?n=<span class=\"ds-pend\">{{users.name}}</span>&amp;x=<span class=\"ds-bad\">{{nope}}</span></code>",
+      "css": ".ds-tpl { font: 400 13px/18px var(--mono, 'Geist Mono', monospace); color: var(--text, #f3f1eb); } .ds-tpl span { border-radius: 2px; } .ds-var { background: var(--info-soft, rgb(0 147 198 / 0.12)); color: var(--info, #8ecae9); } .ds-gen { background: var(--raised2, rgb(255 255 255 / 0.08)); color: var(--text2, #d3d2d1); } .ds-pend { background: var(--warning-soft, rgb(177 123 0 / 0.12)); color: var(--warning, #e0ba80); } .ds-bad { background: var(--danger-soft, rgb(225 78 61 / 0.12)); color: var(--danger, #fea697); }"
+    },
+    {
+      "name": "Load Profile",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature: the drawn plan in the accent with draggable handles; after a run, plan dashed and achieved solid in text.",
+      "html": "<svg class=\"ds-profile\" viewBox=\"0 0 320 120\" role=\"img\" aria-label=\"Load profile\"><line x1=\"30\" x2=\"310\" y1=\"20\" y2=\"20\" class=\"ds-grid\"/><line x1=\"30\" x2=\"310\" y1=\"60\" y2=\"60\" class=\"ds-grid\"/><line x1=\"30\" x2=\"310\" y1=\"100\" y2=\"100\" class=\"ds-grid\"/><text x=\"24\" y=\"24\" class=\"ds-tick\" text-anchor=\"end\">60</text><text x=\"24\" y=\"104\" class=\"ds-tick\" text-anchor=\"end\">0</text><path d=\"M30,100 L90,30 L250,30 L310,100 Z\" class=\"ds-area\"/><path d=\"M30,100 L90,30 L250,30 L310,100\" class=\"ds-plan\"/><path d=\"M30,100 L60,70 L95,36 L180,33\" class=\"ds-achieved\"/><circle cx=\"90\" cy=\"30\" r=\"5\" class=\"ds-handle\" tabindex=\"0\"/><circle cx=\"250\" cy=\"30\" r=\"5\" class=\"ds-handle\" tabindex=\"0\"/></svg>",
+      "css": ".ds-profile { width: 320px; color: var(--accent, #52b692); background: var(--panel, #0e0e10); border: 1px solid var(--line, rgb(255 255 255 / 0.06)); border-radius: 12px; } .ds-grid { stroke: var(--grid, rgb(255 255 255 / 0.06)); } .ds-tick { fill: var(--text4, #939494); font: 400 11px var(--mono, 'Geist Mono', monospace); } .ds-area { fill: currentColor; opacity: .06; } .ds-plan { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 5 4; } .ds-achieved { fill: none; stroke: var(--text, #f3f1eb); stroke-width: 1.75; stroke-linejoin: round; } .ds-handle { fill: var(--panel, #0e0e10); stroke: currentColor; stroke-width: 2; cursor: grab; } .ds-handle:focus-visible { stroke-width: 3; outline: none; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Bench Instrument",
+    "overview": "Toad is a measuring instrument that sits next to the editor: a near-colorless ground, a chrome-coloured rail and header, hairline cards, and literal values set in mono so they read like readouts. Color is rationed. One accent (Mint by default) marks what you can act on and what you have chosen; status hues mean status; chart series are the only place hue carries data. Everything else is ground, line and text in four steps.\n\nThe world is Saga's: true black in dark, warm paper in light, built at runtime from OKLCH ramps in `src/lib/theme.ts` so charts and CSS share one palette. The accent is a per-machine preference across six packs (Violet, Blue, Mint, Lime, Amber, Coral); every rule here is written against roles, not hues, so it holds for any pack. Density is desktop-tool density: 13px body, 32px controls, 12px card radii, and no decoration that isn't carrying information. The signature is the drawn load profile: the plan is a line you drag, and the same chart later lays the achieved run over it.\n\nThe system refuses the category default of one long form beside a dashboard, and it refuses decorative color: no gradients, no tinted card backgrounds, no colored rail bars.",
+    "keyCharacteristics": [
+      "True-black (dark) or warm-paper (light) ground; the chrome (rail, header, footer, outline) is the same ground, divided by hairlines.",
+      "One accent, used only for the primary action, selection, focus and the planned-load line.",
+      "Instrument Sans for interface text; Geist Mono with tabular figures for every literal value, URL, method and number.",
+      "Five type sizes; hierarchy comes from weight and text tone, not more sizes.",
+      "Flat panels with hairline edges; shadow only on things that float.",
+      "Drawn, single-weight SVG icons; no glyphs standing in for icons."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "The accent marks exactly four things: the primary action, selection, focus, and the planned load. A screen at rest shows it on Start and on whatever is selected, nowhere else.", "section": "colors" },
+      { "name": "The No Side Bar Rule", "body": "The active rail item is a full accent-wash fill with an accent-ink icon. It never carries a colored side stripe.", "section": "colors" },
+      { "name": "The Data Never Borrows Rule", "body": "Chart series are never the accent. Plans are the dashed accent line; achieved load over a plan is drawn in `text`; targets and reference lines are neutral `text4`, dashed.", "section": "colors" },
+      { "name": "The Token Tone Rule", "body": "In templates and resolved previews: variables and resolved values are info, generators are neutral raised2, pending tokens are warning, unknown or invalid tokens are danger. Secrets render as masked dots, never colored.", "section": "colors" },
+      { "name": "The Five Sizes Rule", "body": "Exactly five sizes (11, 12, 13, 15, 20). Hierarchy comes from weight (400/500/600) and text tone (text to text4), not from new sizes.", "section": "typography" },
+      { "name": "The Literal Is Mono Rule", "body": "Every literal value, URL, header, HTTP method, variable name and number is Geist Mono with tabular figures. Error rates show one decimal, or two when one decimal would hide which side of an in-scope bound the value is on. Verdict values carry their unit.", "section": "typography" },
+      { "name": "The Only Floaters Cast Rule", "body": "A card on the window has a hairline and no shadow. If it does not float above other content, it does not get the pop shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "**Do** take every color from the runtime palette roles (`--bg`, `--panel`, `--line2`, `--accent-soft`); never hard-code a hex in a component, so all six accents and both themes keep working.",
+      "**Do** set every literal value, URL, method and number in Geist Mono with tabular figures, and give verdict values their unit.",
+      "**Do** mark selection with the accent wash (plus a 1px inset accent ring on list rows) and keep Start the only accent-filled button on screen.",
+      "**Do** draw plans as dashed accent, achieved-over-plan as solid `text`, and targets or references as dashed `text4`.",
+      "**Do** put round 1/2/2.5/5×10ⁿ ticks with one precision on every chart axis, and a legend on every chart with more than one line.",
+      "**Do** use the drawn SVG icon set in `ui.tsx` for every icon, including arrows used as icons."
+    ],
+    "donts": [
+      "**Don't** use the accent for chart series, status, decoration, or a colored side bar on the active rail item.",
+      "**Don't** add a shadow to a card that sits on the window; shadow belongs only to floating surfaces.",
+      "**Don't** introduce a sixth type size; reach for weight or text tone instead.",
+      "**Don't** use Unicode glyphs as stand-ins for icons. Arrows inside prose and native dialog text are fine.",
+      "**Don't** let a status hue sit within 26° of the accent, or a series within 60°; the palette builder enforces this, so don't override it.",
+      "**Don't** put a small uppercase label above a heading; uppercase micro is only the heading of a list group."
+    ]
+  }
+}

@@ -30,10 +30,9 @@ fn to_csv(s: &RunSummary) -> String {
     let mut rows: Vec<(String, String)> = vec![
         ("run_id".into(), s.run_id.clone()),
         ("test_name".into(), s.config.name.clone()),
-        ("method".into(), s.config.request.method.as_str().into()),
-        ("url".into(), s.config.request.url.clone()),
-        ("concurrency".into(), s.config.load.concurrency.to_string()),
-        ("rps_cap".into(), s.config.load.rps_cap.map(|r| r.to_string()).unwrap_or_default()),
+        ("scenarios".into(), s.config.enabled_scenarios().map(|x| x.name.clone()).collect::<Vec<_>>().join(" | ")),
+        ("environment".into(), s.env.environment.clone()),
+        ("open_model".into(), s.capped.to_string()),
         ("started_at_ms".into(), s.started_at.to_string()),
         ("ended_at_ms".into(), s.ended_at.to_string()),
         ("end_reason".into(), enum_str(&s.end_reason)),
@@ -64,9 +63,33 @@ fn to_csv(s: &RunSummary) -> String {
         rows.push((format!("error_{}", enum_str(&kind)), e.count.to_string()));
     }
 
+    for v in &s.verdict {
+        rows.push((format!("threshold {}", v.label), if v.pending { "pending".into() } else if v.passed { "pass".into() } else { "fail".into() }));
+    }
+    for (k, v) in [
+        ("skipped", s.outcomes.skipped), ("not_taken", s.outcomes.not_taken), ("blocked", s.outcomes.blocked),
+        ("build_errors", s.outcomes.build_errors), ("dropped", s.outcomes.dropped), ("check_failures", s.outcomes.check_failures),
+        ("iterations", s.outcomes.iterations),
+    ] {
+        rows.push((k.into(), v.to_string()));
+    }
+
     let mut out = String::from("metric,value\n");
     for (k, v) in rows {
         let _ = writeln!(out, "{},{}", k, csv_field(&v));
+    }
+    if !s.endpoints.is_empty() {
+        out.push('\n');
+        out.push_str("step_id,step,phase,method,url,requests,ok,failed,skipped,not_taken,blocked,check_failures,p50_us,p90_us,p95_us,p99_us,max_us,ttfb_p50_us,bytes\n");
+        for e in &s.endpoints {
+            let _ = writeln!(
+                out,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                csv_field(&e.step_id), csv_field(&e.name), enum_str(&e.phase), e.method, csv_field(&e.url),
+                e.totals.total, e.totals.ok, e.totals.failed, e.outcomes.skipped, e.outcomes.not_taken, e.outcomes.blocked,
+                e.outcomes.check_failures, e.latency.p50, e.latency.p90, e.latency.p95, e.latency.p99, e.latency.max, e.ttfb.p50, e.bytes
+            );
+        }
     }
     out.push('\n');
     out.push_str("t_s,rps,ok,failed,bytes,p50_us,p95_us,p99_us,raw_p50_us,raw_p95_us,raw_p99_us\n");
@@ -84,24 +107,18 @@ fn to_csv(s: &RunSummary) -> String {
 mod tests {
     use super::*;
     use crate::models::*;
+    use crate::spec::*;
 
     fn summary() -> RunSummary {
+        let mut config = TestConfig::blank("t", "http://localhost/");
+        config.name = "a, \"quoted\" name".into();
+        if let FlowItem::Request { step } = &mut config.scenarios[0].steps[0] {
+            step.headers.push(KeyValue { name: "Authorization".into(), value: "Basic abc".into(), enabled: true });
+            step.auth = Auth::Bearer { token: "secret-token".into() };
+        }
         RunSummary {
             run_id: "r1".into(),
-            config: TestConfig {
-                id: "t".into(),
-                name: "a, \"quoted\" name".into(),
-                request: RequestSpec {
-                    method: Method::Get,
-                    url: "http://localhost/".into(),
-                    headers: vec![Header { name: "Authorization".into(), value: "Basic abc".into(), enabled: true }],
-                    body: None,
-                    bearer: Some("secret-token".into()),
-                },
-                load: LoadSpec::default(),
-                created_at: 0,
-                updated_at: 0,
-            },
+            config,
             started_at: 1,
             ended_at: 2,
             end_reason: EndReason::Completed,
@@ -117,7 +134,20 @@ mod tests {
             bytes: 10,
             capped: false,
             warnings: vec![],
-            series: vec![SecondPoint { t_s: 1, rps: 2.0, ok: 1, failed: 1, bytes: 10, p50: 5, p95: 6, p99: 7, raw_p50: 5, raw_p95: 6, raw_p99: 7 }],
+            series: vec![SecondPoint { t_s: 1, rps: 2.0, ok: 1, failed: 1, bytes: 10, p50: 5, p95: 6, p99: 7, raw_p50: 5, raw_p95: 6, raw_p99: 7, vus: 1, iterations: 2 }],
+            outcomes: OutcomeCounts::default(),
+            endpoints: vec![EndpointSummary {
+                step_id: "r1".into(), name: "GET /".into(), phase: StepPhase::Main, scenario_id: Some("s1".into()), group_id: None,
+                method: "GET".into(), url: "http://localhost/".into(), totals: Totals { total: 2, ok: 1, failed: 1, ..Default::default() },
+                outcomes: OutcomeCounts::default(), check_failures: vec![], extract_failures: vec![], latency: Percentiles { p50: 5, ..Default::default() },
+                latency_raw: Percentiles::default(), ttfb: Percentiles::default(), bytes: 10, spectrum: vec![], series: vec![],
+            }],
+            scenarios: vec![],
+            verdict: vec![ThresholdResult { id: "t".into(), label: "p95 < 300 ms".into(), observed: 6.0, passed: true, crossed_at_ms: None, pending: false }],
+            aborted_by: None,
+            env: RunEnv::default(),
+            samples: SamplesInfo::default(),
+            legacy: false,
         }
     }
 
@@ -133,10 +163,13 @@ mod tests {
     #[test]
     fn csv_layout() {
         let c = export(&summary(), ExportFormat::Csv, true);
-        assert!(c.starts_with("metric,value\nrun_id,r1\ntest_name,\"a, \"\"quoted\"\" name\"\n"));
+        assert!(c.starts_with("metric,value\nrun_id,r1\ntest_name,\"a, \"\"quoted\"\" name\"\n"), "{c}");
         assert!(c.contains("end_reason,completed\n"));
         assert!(c.contains("status_200,1\n"));
         assert!(c.contains("error_timeout,1\n"));
+        assert!(c.contains("threshold p95 < 300 ms,pass\n"));
+        assert!(c.contains("\nstep_id,step,phase"));
+        assert!(c.contains("r1,GET /,main,GET,http://localhost/,2,1,1,"));
         assert!(c.contains("\n\nt_s,rps,ok,failed"));
         assert!(c.trim_end().ends_with("1,2.00,1,1,10,5,6,7,5,6,7"));
         assert!(!c.contains("secret-token"));

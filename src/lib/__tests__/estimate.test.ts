@@ -1,50 +1,58 @@
-import { describeStatusRange, estimateRun, sentBy, timeFor } from "../estimate";
-import { defaultLoad } from "../defaults";
-import { fmtSecs } from "../format";
+import { newScenario, newTest, pauseItem } from "../defaults";
+import { estimateScenario, estimateTest, requestsPerIteration, ASSUMED_LATENCY_MS } from "../estimate";
+import { area, convert, duration, peak, points, valueAt } from "../profile";
 
-describe("run estimates", () => {
-  it("uncapped duration runs scale with workers at the assumed latency", () => {
-    const e = estimateRun({ ...defaultLoad(), concurrency: 50, stop: { kind: "duration", secs: 30 } })!;
-    expect(e.secs).toBe(30);
-    expect(e.rate).toBe(1000);
-    expect(e.requests).toBe(30_000);
-    expect(e.latencyBound).toBe(true);
+describe("profiles", () => {
+  it("draws staged executors as corner points", () => {
+    const e = { kind: "ramping_vus" as const, start: 0, stages: [{ duration_secs: 10, target: 100 }, { duration_secs: 20, target: 100 }, { duration_secs: 5, target: 0 }] };
+    expect(points(e)).toEqual([{ t: 0, v: 0 }, { t: 10, v: 100 }, { t: 30, v: 100 }, { t: 35, v: 0 }]);
+    expect(duration(e)).toBe(35);
+    expect(valueAt(e, 5)).toBe(50);
+    expect(valueAt(e, 32.5)).toBe(50);
+    expect(peak(e)).toBe(100);
   });
-  it("capped runs follow the rate schedule, including the ramp from 1 rps", () => {
-    const e = estimateRun({ ...defaultLoad(), concurrency: 50, rps_cap: 100, ramp_up_secs: 10, stop: { kind: "duration", secs: 30 } })!;
-    // 10 s ramp from 1 to 100 rps (505 requests) then 20 s at 100 rps.
-    expect(e.requests).toBe(2505);
-    expect(e.workersNeeded).toBeNull();
+  it("integrates arrival rates", () => {
+    expect(area({ kind: "rate", rate: 50, duration_secs: 10, max_vus: 5 })).toBe(500);
+    expect(area({ kind: "ramping_rate", start: 0, stages: [{ duration_secs: 10, target: 100 }], max_vus: 10 })).toBe(500);
   });
-  it("request-count runs estimate their length", () => {
-    const e = estimateRun({ ...defaultLoad(), concurrency: 10, rps_cap: 50, stop: { kind: "requests", count: 1000 } })!;
-    expect(e.secs).toBe(20);
-    expect(e.requests).toBe(1000);
-  });
-  it("flags a cap the workers can't reach", () => {
-    const e = estimateRun({ ...defaultLoad(), concurrency: 10, rps_cap: 2000 })!;
-    expect(e.workersNeeded).toBe(100);
-  });
-  it("is null while a needed field is empty", () => {
-    expect(estimateRun({ ...defaultLoad(), concurrency: Number.NaN })).toBeNull();
-    expect(estimateRun({ ...defaultLoad(), stop: { kind: "duration", secs: Number.NaN } })).toBeNull();
-  });
-  it("timeFor inverts sentBy inside and after the ramp", () => {
-    for (const t of [0.5, 3, 9.9, 12, 40]) expect(timeFor(sentBy(t, 1, 200, 10), 1, 200, 10)).toBeCloseTo(t, 6);
+  it("converts between models keeping the level", () => {
+    const r = convert({ kind: "vus", vus: 40, duration_secs: 60 }, "rate");
+    expect(r).toMatchObject({ kind: "rate", rate: 40, duration_secs: 60 });
+    const s = convert({ kind: "vus", vus: 40, duration_secs: 60 }, "ramping_vus");
+    expect(s.kind).toBe("ramping_vus");
+    expect(duration(s)).toBe(60);
   });
 });
 
-describe("status range and durations", () => {
-  it("describes ranges by class where possible", () => {
-    expect(describeStatusRange(200, 399)).toBe("2xx and 3xx responses");
-    expect(describeStatusRange(200, 299)).toBe("2xx responses");
-    expect(describeStatusRange(200, 204)).toBe("Statuses 200–204");
+describe("estimates", () => {
+  it("counts requests per iteration, groups included", () => {
+    const sc = newScenario("A", "http://x/");
+    sc.steps.push({ kind: "group", group: { id: "g", name: "", steps: [sc.steps[0]!.kind === "request" ? sc.steps[0]!.step : (null as never), sc.steps[0]!.kind === "request" ? sc.steps[0]!.step : (null as never)], run_if: null } });
+    sc.steps.push(pauseItem());
+    expect(requestsPerIteration(sc)).toBe(3);
+    sc.kind = "mix";
+    expect(requestsPerIteration(sc)).toBe(1);
   });
-  it("formats spans for humans", () => {
-    expect(fmtSecs(30)).toBe("30 s");
-    expect(fmtSecs(300)).toBe("5 min");
-    expect(fmtSecs(125)).toBe("2 min 5 s");
-    expect(fmtSecs(5400)).toBe("1 h 30 min");
-    expect(fmtSecs(1.25)).toBe("1.3 s");
+  it("estimates open models exactly and closed ones by assumed latency", () => {
+    const sc = newScenario("A", "http://x/");
+    sc.executor = { kind: "rate", rate: 100, duration_secs: 30, max_vus: 2 };
+    const e = estimateScenario(sc);
+    expect(e.iterations).toBe(3000);
+    expect(e.latencyBound).toBe(false);
+    expect(e.vusNeeded).toBe(Math.ceil((100 * ASSUMED_LATENCY_MS) / 1000 * 1.2));
+    sc.executor = { kind: "vus", vus: 10, duration_secs: 10 };
+    const c = estimateScenario(sc);
+    expect(c.iterations).toBe(Math.round((100 * 1000) / ASSUMED_LATENCY_MS));
+    expect(c.latencyBound).toBe(true);
+  });
+  it("sums scenarios and honours start offsets", () => {
+    const t = newTest();
+    const b = newScenario("B", "http://x/");
+    b.start_offset_secs = 20;
+    b.executor = { kind: "vus", vus: 5, duration_secs: 30 };
+    t.scenarios.push(b);
+    const e = estimateTest(t);
+    expect(e.secs).toBe(50);
+    expect(e.peakVus).toBe(55);
   });
 });

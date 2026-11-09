@@ -5,6 +5,7 @@ fn main() {
         "check_target", "approve_host", "start_run", "stop_run", "current_run",
         "list_runs", "get_run", "delete_run", "export_run",
         "list_tests", "save_test", "duplicate_test", "delete_test",
+        "import_asset", "preview_data", "test_hosts", "validate_test", "try_flow", "send_step", "get_samples",
         "get_settings", "save_settings",
     ];
     tauri_build::try_build(

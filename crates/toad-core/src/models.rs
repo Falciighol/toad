@@ -1,6 +1,8 @@
-//! Shared data model. Every type here is exported to TypeScript (feature `specta`).
+//! Run and result types shared by the engine, the app and the UI. Every type here is
+//! exported to TypeScript (feature `specta`). The test definition lives in `spec.rs`.
 //! Durations/latencies are microseconds unless the field name says otherwise.
 
+use crate::spec::{KeyValue, StepPhase};
 use serde::{Deserialize, Serialize};
 
 macro_rules! model {
@@ -17,32 +19,9 @@ model! {
     #[serde(rename_all = "UPPERCASE")]
     pub enum Method { Get, Post, Put, Patch, Delete, Head, Options }
 
-    pub struct Header {
-        pub name: String,
-        pub value: String,
-        pub enabled: bool,
-    }
-
-    #[serde(rename_all = "snake_case")]
-    pub enum BodyKind { Json, Text }
-
-    pub struct Body {
-        pub kind: BodyKind,
-        pub content: String,
-    }
-
-    pub struct RequestSpec {
-        pub method: Method,
-        pub url: String,
-        pub headers: Vec<Header>,
-        pub body: Option<Body>,
-        /// Stored in plain text. Sent as `Authorization: Bearer <token>`.
-        pub bearer: Option<String>,
-    }
-
+    /// v1 stop condition (kept for loading v1 tests).
     #[serde(tag = "kind", rename_all = "snake_case")]
     pub enum StopCondition {
-        /// Total requests, including those sent during ramp-up.
         Requests { count: u64 },
         Duration { secs: u32 },
     }
@@ -52,29 +31,8 @@ model! {
         pub max: u16,
     }
 
-    pub struct LoadSpec {
-        pub concurrency: u32,
-        pub stop: StopCondition,
-        pub rps_cap: Option<u32>,
-        pub ramp_up_secs: Option<u32>,
-        pub timeout_ms: u32,
-        pub success_range: StatusRange,
-        pub follow_redirects: bool,
-        pub allow_invalid_certs: bool,
-    }
-
-    pub struct TestConfig {
-        pub id: String,
-        pub name: String,
-        pub request: RequestSpec,
-        pub load: LoadSpec,
-        /// Epoch milliseconds.
-        pub created_at: i64,
-        pub updated_at: i64,
-    }
-
     #[serde(rename_all = "snake_case")]
-    pub enum Phase { Ramping, Running, Stopping, Done, Failed }
+    pub enum Phase { Setup, Ramping, Running, Stopping, Teardown, Done, Failed }
 
     #[derive(Default)]
     pub struct Percentiles {
@@ -91,7 +49,7 @@ model! {
 
     #[derive(Copy, Eq, Hash, PartialOrd, Ord)]
     #[serde(rename_all = "snake_case")]
-    pub enum ErrorKind { Timeout, Connect, Dns, Tls, BodyRead, Status, Redirect, Other }
+    pub enum ErrorKind { Timeout, Connect, Dns, Tls, BodyRead, Status, Redirect, Check, Other }
 
     pub struct StatusCount { pub code: u16, pub count: u64 }
 
@@ -100,14 +58,38 @@ model! {
     #[derive(Eq, Hash)]
     #[serde(tag = "kind", rename_all = "snake_case")]
     pub enum Warning {
-        /// Achieved RPS is well below target while server latency is flat.
+        /// Achieved rate is well below target while server latency is flat.
         ToadBottleneck,
         /// The OS refused to open more sockets (EMFILE).
         FdLimit,
         /// The async runtime is lagging (aggregator tick late by >50 ms).
         SchedulerLag,
-        /// Not a Toad problem: concurrency is too low to reach the RPS target.
+        /// Not a Toad problem: max virtual users is too low to reach the rate.
         ConcurrencyTooLow { needed: u32 },
+        /// Arrival-rate iterations were dropped because no virtual user was free.
+        DroppedIterations { scenario: String, count: u64 },
+        /// A data file ran out of rows.
+        DataExhausted { file: String },
+    }
+
+    /// Requests and iterations that never produced a latency sample, by cause.
+    #[derive(Default)]
+    pub struct OutcomeCounts {
+        /// Not sent: a variable it needs was missing (an upstream extraction failed).
+        pub skipped: u64,
+        /// Not sent: its Run if rule was false. A normal path, not an error.
+        pub not_taken: u64,
+        /// Not sent: the host wasn't loopback or confirmed.
+        pub blocked: u64,
+        /// Not sent: the request couldn't be built (bad URL or header after templating).
+        pub build_errors: u64,
+        /// Arrival-rate iterations not started because max virtual users was reached.
+        pub dropped: u64,
+        /// Requests with at least one failed check (counted even when the check doesn't fail the request).
+        pub check_failures: u64,
+        pub extract_failures: u64,
+        pub iterations: u64,
+        pub iterations_failed: u64,
     }
 
     pub struct SecondPoint {
@@ -123,6 +105,68 @@ model! {
         pub raw_p50: u64,
         pub raw_p95: u64,
         pub raw_p99: u64,
+        /// Active virtual users at the end of the second.
+        #[serde(default)]
+        pub vus: u32,
+        /// Iterations started in the second.
+        #[serde(default)]
+        pub iterations: u64,
+    }
+
+    /// One scenario's second: what its load profile achieved, for planned-vs-achieved.
+    pub struct ScenarioPoint {
+        pub t_s: u32,
+        /// Busy virtual users at the end of the second.
+        pub vus: u32,
+        /// Iterations started in the second.
+        pub iterations: u64,
+    }
+
+    /// One endpoint's second. `hist` is a sparse latency histogram: pairs of
+    /// [bucket index, count] over [`crate::metrics::BUCKETS`] (corrected latency).
+    pub struct StepPoint {
+        pub t_s: u32,
+        pub ok: u64,
+        pub failed: u64,
+        pub p50: u64,
+        pub p95: u64,
+        pub p99: u64,
+        pub hist: Vec<u32>,
+    }
+
+    pub struct EndpointLive {
+        pub step_id: String,
+        pub total: u64,
+        pub failed: u64,
+        /// Requests per second over the last interval.
+        pub rps: f64,
+        pub p95: u64,
+        pub p99: u64,
+        /// p99 over the whole run so far.
+        pub p99_run: u64,
+        pub skipped: u64,
+        pub not_taken: u64,
+    }
+
+    pub struct ScenarioLive {
+        pub id: String,
+        pub vus: u32,
+        pub iterations: u64,
+        pub dropped: u64,
+        /// The profile's planned value now: VUs (closed) or iterations/s (open).
+        pub target: f64,
+    }
+
+    pub struct ThresholdResult {
+        pub id: String,
+        /// e.g. "p95 < 300 ms · Checkout"
+        pub label: String,
+        pub observed: f64,
+        pub passed: bool,
+        /// When it first failed during the run (live evaluation), ms since start.
+        pub crossed_at_ms: Option<u64>,
+        /// Too few samples to judge yet.
+        pub pending: bool,
     }
 
     pub struct Snapshot {
@@ -138,8 +182,9 @@ model! {
         pub active_workers: u32,
         pub bytes: u64,
         pub rps_interval: f64,
+        /// Planned rate for open-model runs: iterations/s summed over scenarios.
         pub target_rps: Option<f64>,
-        /// Latency measured from the scheduled send time (equal to raw when uncapped).
+        /// Latency measured from the scheduled send time (equal to raw when no open-model scenario).
         pub lat_interval: Percentiles,
         pub lat_interval_raw: Percentiles,
         pub lat_cumulative: Percentiles,
@@ -149,10 +194,14 @@ model! {
         /// Present on the snapshot that closes a full second.
         pub second: Option<SecondPoint>,
         pub warnings: Vec<Warning>,
+        pub outcomes: OutcomeCounts,
+        pub endpoints: Vec<EndpointLive>,
+        pub scenarios: Vec<ScenarioLive>,
+        pub thresholds: Vec<ThresholdResult>,
     }
 
     #[serde(rename_all = "snake_case")]
-    pub enum EndReason { Completed, Stopped, Failed }
+    pub enum EndReason { Completed, Stopped, Aborted, Failed }
 
     #[derive(Default)]
     pub struct Totals {
@@ -164,9 +213,73 @@ model! {
         pub error_counts: Vec<ErrorCount>,
     }
 
+    pub struct RuleCount { pub id: String, pub count: u64 }
+
+    /// A point on the percentile spectrum: `q` in 0..1, latency in µs.
+    pub struct SpectrumPoint { pub q: f64, pub us: u64 }
+
+    /// Everything measured for one request step.
+    pub struct EndpointSummary {
+        pub step_id: String,
+        pub name: String,
+        pub phase: StepPhase,
+        pub scenario_id: Option<String>,
+        pub group_id: Option<String>,
+        pub method: String,
+        /// URL template as written (one row per step, whatever the variables resolved to).
+        pub url: String,
+        pub totals: Totals,
+        pub outcomes: OutcomeCounts,
+        pub check_failures: Vec<RuleCount>,
+        pub extract_failures: Vec<RuleCount>,
+        /// Corrected latency (equal to raw outside open-model scenarios).
+        pub latency: Percentiles,
+        pub latency_raw: Percentiles,
+        pub ttfb: Percentiles,
+        pub bytes: u64,
+        pub spectrum: Vec<SpectrumPoint>,
+        pub series: Vec<StepPoint>,
+    }
+
+    pub struct ScenarioSummary {
+        pub id: String,
+        pub name: String,
+        pub iterations: u64,
+        pub iterations_failed: u64,
+        pub dropped: u64,
+        pub peak_vus: u32,
+        pub iteration_duration: Percentiles,
+        pub open_model: bool,
+        /// Per-second achieved load (empty for runs recorded before it existed).
+        #[serde(default)]
+        pub series: Vec<ScenarioPoint>,
+    }
+
+    pub struct DataFileInfo { pub name: String, pub rows: u64, pub hash: String }
+
+    #[derive(Default)]
+    pub struct RunEnv {
+        pub toad_version: String,
+        pub os: String,
+        pub cores: u32,
+        pub environment: String,
+        pub proxied: bool,
+        pub data_files: Vec<DataFileInfo>,
+    }
+
+    #[derive(Default)]
+    pub struct SamplesInfo {
+        pub count: u64,
+        pub bytes: u64,
+        /// A cap was hit, so some failures or slow requests weren't kept.
+        pub truncated: bool,
+        /// Bodies weren't stored (Settings).
+        pub bodies: bool,
+    }
+
     pub struct RunSummary {
         pub run_id: String,
-        pub config: TestConfig,
+        pub config: crate::spec::TestConfig,
         pub started_at: i64,
         pub ended_at: i64,
         pub end_reason: EndReason,
@@ -178,10 +291,117 @@ model! {
         pub duration_ms: u64,
         pub achieved_rps: f64,
         pub bytes: u64,
-        /// Whether an RPS cap was active (corrected latency is the headline only then).
+        /// Whether an open-model scenario ran (corrected latency is the headline only then).
         pub capped: bool,
         pub warnings: Vec<Warning>,
         pub series: Vec<SecondPoint>,
+        #[serde(default)]
+        pub outcomes: OutcomeCounts,
+        #[serde(default)]
+        pub endpoints: Vec<EndpointSummary>,
+        #[serde(default)]
+        pub scenarios: Vec<ScenarioSummary>,
+        #[serde(default)]
+        pub verdict: Vec<ThresholdResult>,
+        /// Threshold that aborted the run.
+        #[serde(default)]
+        pub aborted_by: Option<String>,
+        #[serde(default)]
+        pub env: RunEnv,
+        #[serde(default)]
+        pub samples: SamplesInfo,
+        /// Stored before format v2: per-step data doesn't exist.
+        #[serde(default)]
+        pub legacy: bool,
+    }
+
+    #[serde(rename_all = "snake_case")]
+    pub enum SampleReason { Failure, Slow, Random, Try }
+
+    #[serde(rename_all = "snake_case")]
+    pub enum StepOutcome { Ok, Failed, Skipped, NotTaken, Blocked, BuildError, Cancelled }
+
+    pub struct SampleRequest {
+        pub method: String,
+        pub url: String,
+        pub headers: Vec<KeyValue>,
+        pub body: String,
+        pub body_bytes: u64,
+        pub truncated: bool,
+        pub binary: bool,
+    }
+
+    pub struct SampleResponse {
+        pub status: u16,
+        pub headers: Vec<KeyValue>,
+        pub body: String,
+        pub body_bytes: u64,
+        pub truncated: bool,
+        pub binary: bool,
+    }
+
+    pub struct Hop { pub status: u16, pub url: String }
+
+    pub struct CheckResult {
+        pub id: String,
+        pub label: String,
+        pub passed: bool,
+        pub actual: String,
+    }
+
+    pub struct ExtractResult {
+        pub id: String,
+        pub var: String,
+        pub value: Option<String>,
+        pub secret: bool,
+        pub error: Option<String>,
+    }
+
+    /// One step of a virtual user's iteration, without bodies.
+    pub struct TraceEntry {
+        pub step_id: String,
+        pub name: String,
+        pub outcome: StepOutcome,
+        pub status: Option<u16>,
+        pub latency_us: u64,
+        pub t_ms: u64,
+        pub note: Option<String>,
+    }
+
+    /// A captured request with its response and context.
+    pub struct Sample {
+        pub id: u64,
+        pub step_id: String,
+        pub scenario_id: Option<String>,
+        pub reason: SampleReason,
+        pub outcome: StepOutcome,
+        pub error_kind: Option<ErrorKind>,
+        pub error: Option<String>,
+        /// ms since run start.
+        pub t_ms: u64,
+        pub vu: u32,
+        pub iteration: u64,
+        pub latency_us: u64,
+        pub raw_us: u64,
+        pub ttfb_us: u64,
+        pub request: Option<SampleRequest>,
+        pub response: Option<SampleResponse>,
+        pub redirects: Vec<Hop>,
+        pub vars: Vec<KeyValue>,
+        pub checks: Vec<CheckResult>,
+        pub extracted: Vec<ExtractResult>,
+        /// Earlier steps of the same iteration.
+        pub trace: Vec<TraceEntry>,
+        /// Run if outcome when the step had a rule.
+        pub branch: Option<bool>,
+    }
+
+    /// Result of Try once / Send once.
+    pub struct TryResult {
+        pub steps: Vec<Sample>,
+        pub error: Option<String>,
+        /// Variables in scope at the end (secret values redacted).
+        pub vars: Vec<KeyValue>,
     }
 
     pub struct Settings {
@@ -193,6 +413,20 @@ model! {
         pub store_secrets_in_history: bool,
         /// Treat RFC 1918 / ULA addresses like loopback (skip the confirmation).
         pub private_ranges_as_local: bool,
+        /// Per endpoint: failures kept per error kind.
+        #[serde(default = "d_fail")]
+        pub sample_failures: u32,
+        #[serde(default = "d_slow")]
+        pub sample_slowest: u32,
+        #[serde(default = "d_rand")]
+        pub sample_random: u32,
+        #[serde(default = "d_body")]
+        pub sample_body_kb: u32,
+        #[serde(default = "d_run")]
+        pub sample_run_mb: u32,
+        /// Store request/response bodies in samples.
+        #[serde(default = "d_true")]
+        pub sample_bodies: bool,
     }
 
     pub struct FieldError {
@@ -211,21 +445,38 @@ model! {
         /// True when no confirmation is required (loopback, already approved, or allowed private).
         pub approved: bool,
     }
+
+    #[serde(rename_all = "snake_case")]
+    pub enum HostSource { Static, Runtime, Proxy }
+
+    /// A host a test touches, for the Review stage.
+    pub struct HostInfo {
+        pub host: String,
+        pub source: HostSource,
+        /// Steps that reach it (labels).
+        pub steps: Vec<String>,
+        pub check: Option<TargetCheck>,
+        pub error: Option<String>,
+    }
 }
 
-impl Default for LoadSpec {
-    fn default() -> Self {
-        Self {
-            concurrency: 50,
-            stop: StopCondition::Duration { secs: 30 },
-            rps_cap: None,
-            ramp_up_secs: None,
-            timeout_ms: 10_000,
-            success_range: StatusRange { min: 200, max: 399 },
-            follow_redirects: true,
-            allow_invalid_certs: false,
-        }
-    }
+fn d_fail() -> u32 {
+    200
+}
+fn d_slow() -> u32 {
+    50
+}
+fn d_rand() -> u32 {
+    100
+}
+fn d_body() -> u32 {
+    64
+}
+fn d_run() -> u32 {
+    50
+}
+fn d_true() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -237,6 +488,12 @@ impl Default for Settings {
             strip_secrets_on_export: true,
             store_secrets_in_history: false,
             private_ranges_as_local: false,
+            sample_failures: d_fail(),
+            sample_slowest: d_slow(),
+            sample_random: d_rand(),
+            sample_body_kb: d_body(),
+            sample_run_mb: d_run(),
+            sample_bodies: true,
         }
     }
 }
@@ -256,7 +513,7 @@ impl Method {
 }
 
 impl ErrorKind {
-    pub const ALL: [ErrorKind; 8] = [
+    pub const ALL: [ErrorKind; 9] = [
         ErrorKind::Timeout,
         ErrorKind::Connect,
         ErrorKind::Dns,
@@ -264,6 +521,7 @@ impl ErrorKind {
         ErrorKind::BodyRead,
         ErrorKind::Status,
         ErrorKind::Redirect,
+        ErrorKind::Check,
         ErrorKind::Other,
     ];
 
@@ -272,36 +530,27 @@ impl ErrorKind {
     }
 }
 
-/// Header names whose values are treated as secrets (masked, stripped from exports).
-pub const SENSITIVE_HEADERS: [&str; 4] =
-    ["authorization", "proxy-authorization", "cookie", "x-api-key"];
-
-pub const REDACTED: &str = "[redacted]";
-
-pub fn is_sensitive_header(name: &str) -> bool {
-    SENSITIVE_HEADERS.iter().any(|h| h.eq_ignore_ascii_case(name.trim()))
-}
-
-impl TestConfig {
-    /// A copy with bearer token and sensitive header values replaced by `[redacted]`.
-    pub fn redacted(&self) -> TestConfig {
-        let mut c = self.clone();
-        if c.request.bearer.as_deref().is_some_and(|b| !b.is_empty()) {
-            c.request.bearer = Some(REDACTED.into());
-        }
-        for h in &mut c.request.headers {
-            if is_sensitive_header(&h.name) && !h.value.is_empty() {
-                h.value = REDACTED.into();
-            }
-        }
-        c
-    }
-}
-
 impl RunSummary {
-    /// Same summary without the per-second series (used for history listings).
+    /// Same summary without the series (used for history listings).
     pub fn without_series(&self) -> RunSummary {
-        RunSummary { series: Vec::new(), ..self.clone() }
+        RunSummary {
+            series: Vec::new(),
+            endpoints: self
+                .endpoints
+                .iter()
+                .map(|e| EndpointSummary { series: Vec::new(), spectrum: Vec::new(), ..e.clone() })
+                .collect(),
+            ..self.clone()
+        }
+    }
+
+    /// The headline latency: corrected when an open-model scenario ran.
+    pub fn headline(&self) -> &Percentiles {
+        if self.capped {
+            &self.latency_corrected
+        } else {
+            &self.latency_raw
+        }
     }
 }
 
@@ -324,173 +573,9 @@ impl Default for Limits {
     }
 }
 
-fn err(field: &str, message: impl Into<String>) -> FieldError {
-    FieldError { field: field.into(), message: message.into() }
-}
-
-impl RequestSpec {
-    pub fn validate(&self) -> Vec<FieldError> {
-        let mut errors = Vec::new();
-        let url = self.url.trim();
-        if url.is_empty() {
-            errors.push(err("request.url", "URL is required"));
-        } else {
-            match reqwest::Url::parse(url) {
-                Ok(u) if u.scheme() != "http" && u.scheme() != "https" => {
-                    errors.push(err("request.url", "URL must start with http:// or https://"))
-                }
-                Ok(u) if u.host_str().is_none_or(str::is_empty) => {
-                    errors.push(err("request.url", "URL has no host"))
-                }
-                Ok(_) => {}
-                Err(e) => errors.push(err("request.url", format!("Invalid URL: {e}"))),
-            }
-        }
-        for (i, h) in self.headers.iter().enumerate() {
-            if !h.enabled {
-                continue;
-            }
-            let field = format!("request.headers.{i}");
-            if h.name.trim().is_empty() {
-                errors.push(err(&field, "Header name is required"));
-            } else if reqwest::header::HeaderName::from_bytes(h.name.trim().as_bytes()).is_err() {
-                errors.push(err(&field, "Invalid header name"));
-            } else if reqwest::header::HeaderValue::from_str(&h.value).is_err() {
-                errors.push(err(&field, "Invalid header value"));
-            }
-        }
-        if let Some(body) = &self.body {
-            if body.kind == BodyKind::Json && !body.content.trim().is_empty() {
-                if let Err(e) = serde_json::from_str::<serde_json::Value>(&body.content) {
-                    errors.push(err("request.body", format!("Invalid JSON: {e}")));
-                }
-            }
-        }
-        if let Some(b) = &self.bearer {
-            if reqwest::header::HeaderValue::from_str(&format!("Bearer {b}")).is_err() {
-                errors.push(err("request.bearer", "Token contains invalid characters"));
-            }
-        }
-        errors
-    }
-}
-
-impl LoadSpec {
-    pub fn validate(&self, limits: Limits) -> Vec<FieldError> {
-        let mut errors = Vec::new();
-        if self.concurrency == 0 {
-            errors.push(err("load.concurrency", "Concurrency must be at least 1"));
-        } else if self.concurrency > limits.max_concurrency {
-            errors.push(err(
-                "load.concurrency",
-                format!("Concurrency is capped at {} (Settings)", limits.max_concurrency),
-            ));
-        }
-        match self.stop {
-            StopCondition::Requests { count: 0 } => {
-                errors.push(err("load.stop", "Request count must be at least 1"))
-            }
-            StopCondition::Duration { secs: 0 } => {
-                errors.push(err("load.stop", "Duration must be at least 1 second"))
-            }
-            StopCondition::Duration { secs } if secs > 24 * 3600 => {
-                errors.push(err("load.stop", "Duration must be at most 24 hours"))
-            }
-            _ => {}
-        }
-        if let Some(rps) = self.rps_cap {
-            if rps == 0 {
-                errors.push(err("load.rps_cap", "RPS cap must be at least 1"));
-            } else if rps > limits.max_rps {
-                errors.push(err(
-                    "load.rps_cap",
-                    format!("RPS is capped at {} (Settings)", limits.max_rps),
-                ));
-            }
-        }
-        if let Some(r) = self.ramp_up_secs {
-            if r > 3600 {
-                errors.push(err("load.ramp_up_secs", "Ramp-up must be at most 3600 s"));
-            }
-            if let StopCondition::Duration { secs } = self.stop {
-                if r >= secs && r > 0 {
-                    errors.push(err("load.ramp_up_secs", "Ramp-up must be shorter than the duration"));
-                }
-            }
-        }
-        if self.timeout_ms < 1 || self.timeout_ms > 300_000 {
-            errors.push(err("load.timeout_ms", "Timeout must be between 1 ms and 300 s"));
-        }
-        let r = &self.success_range;
-        if r.min < 100 || r.max > 599 || r.min > r.max {
-            errors.push(err("load.success_range", "Status range must be within 100–599 and min ≤ max"));
-        }
-        errors
-    }
-}
-
-impl TestConfig {
-    pub fn validate(&self, limits: Limits) -> Vec<FieldError> {
-        let mut e = Vec::new();
-        if self.name.trim().is_empty() {
-            e.push(err("name", "Name is required"));
-        }
-        e.extend(self.request.validate());
-        e.extend(self.load.validate(limits));
-        e
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn req(url: &str) -> RequestSpec {
-        RequestSpec { method: Method::Get, url: url.into(), headers: vec![], body: None, bearer: None }
-    }
-
-    #[test]
-    fn url_validation() {
-        assert!(req("http://localhost:8080/x").validate().is_empty());
-        assert_eq!(req("").validate()[0].field, "request.url");
-        assert!(!req("ftp://x").validate().is_empty());
-        assert!(!req("not a url").validate().is_empty());
-    }
-
-    #[test]
-    fn json_body_validation() {
-        let mut r = req("http://localhost");
-        r.body = Some(Body { kind: BodyKind::Json, content: "{\"a\":".into() });
-        assert_eq!(r.validate()[0].field, "request.body");
-        r.body = Some(Body { kind: BodyKind::Json, content: "{\"a\":1}".into() });
-        assert!(r.validate().is_empty());
-    }
-
-    #[test]
-    fn load_limits() {
-        let limits = Limits { max_concurrency: 10, max_rps: 100 };
-        let mut l = LoadSpec { concurrency: 11, ..Default::default() };
-        assert_eq!(l.validate(limits)[0].field, "load.concurrency");
-        l.concurrency = 5;
-        l.rps_cap = Some(101);
-        assert_eq!(l.validate(limits)[0].field, "load.rps_cap");
-        l.rps_cap = None;
-        l.success_range = StatusRange { min: 400, max: 200 };
-        assert_eq!(l.validate(limits)[0].field, "load.success_range");
-    }
-
-    #[test]
-    fn redaction() {
-        let mut r = req("http://localhost");
-        r.bearer = Some("secret".into());
-        r.headers.push(Header { name: "Authorization".into(), value: "Basic x".into(), enabled: true });
-        r.headers.push(Header { name: "X-Trace".into(), value: "keep".into(), enabled: true });
-        let c = TestConfig { id: "1".into(), name: "n".into(), request: r, load: Default::default(), created_at: 0, updated_at: 0 };
-        let red = c.redacted();
-        assert_eq!(red.request.bearer.as_deref(), Some(REDACTED));
-        assert_eq!(red.request.headers[0].value, REDACTED);
-        assert_eq!(red.request.headers[1].value, "keep");
-    }
 
     #[test]
     fn serde_shapes() {
@@ -498,5 +583,15 @@ mod tests {
         assert_eq!(s, r#"{"kind":"requests","count":5}"#);
         assert_eq!(serde_json::to_string(&Method::Get).unwrap(), "\"GET\"");
         assert_eq!(serde_json::to_string(&ErrorKind::BodyRead).unwrap(), "\"body_read\"");
+    }
+
+    #[test]
+    fn old_settings_files_get_sampling_defaults() {
+        let old = r#"{"max_concurrency":10,"max_rps":5,"history_limit":3,"strip_secrets_on_export":true,
+                      "store_secrets_in_history":false,"private_ranges_as_local":true}"#;
+        let s: Settings = serde_json::from_str(old).unwrap();
+        assert_eq!(s.max_concurrency, 10);
+        assert_eq!((s.sample_failures, s.sample_slowest, s.sample_random, s.sample_body_kb, s.sample_run_mb), (200, 50, 100, 64, 50));
+        assert!(s.sample_bodies);
     }
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-validate-test"
+description = "Enables the validate_test command without any pre-configured scope."
+commands.allow = ["validate_test"]
+
+[[permission]]
+identifier = "deny-validate-test"
+description = "Denies the validate_test command without any pre-configured scope."
+commands.deny = ["validate_test"]

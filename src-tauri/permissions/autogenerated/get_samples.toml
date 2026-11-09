@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-samples"
+description = "Enables the get_samples command without any pre-configured scope."
+commands.allow = ["get_samples"]
+
+[[permission]]
+identifier = "deny-get-samples"
+description = "Denies the get_samples command without any pre-configured scope."
+commands.deny = ["get_samples"]

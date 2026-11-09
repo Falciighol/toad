@@ -171,6 +171,12 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
+name = "base64"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
@@ -2879,6 +2885,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
+
+[[package]]
 name = "rustc-hash"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4098,13 +4110,21 @@ name = "toad-core"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
+ "fastrand",
+ "flate2",
+ "futures-util",
  "hdrhistogram",
+ "percent-encoding",
+ "regex",
  "reqwest",
  "rlimit",
+ "roxmltree",
  "rustls",
  "serde",
  "serde_json",
  "specta",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tokio-util",

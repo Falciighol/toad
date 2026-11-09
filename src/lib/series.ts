@@ -17,6 +17,7 @@ export type ChartPoint = {
   rawP50: number;
   rawP95: number;
   rawP99: number;
+  vus: number;
 };
 
 export function toChartPoint(p: SecondPoint, target: number | null = null): ChartPoint {
@@ -32,6 +33,7 @@ export function toChartPoint(p: SecondPoint, target: number | null = null): Char
     rawP50: p.raw_p50 / 1000,
     rawP95: p.raw_p95 / 1000,
     rawP99: p.raw_p99 / 1000,
+    vus: p.vus ?? 0,
   };
 }
 
@@ -49,6 +51,7 @@ function merge(a: ChartPoint, b: ChartPoint): ChartPoint {
     rawP50: Math.max(a.rawP50, b.rawP50),
     rawP95: Math.max(a.rawP95, b.rawP95),
     rawP99: Math.max(a.rawP99, b.rawP99),
+    vus: Math.max(a.vus, b.vus),
   };
 }
 

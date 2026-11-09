@@ -43,6 +43,7 @@ export function fmtDuration(ms: number): string {
 /** A span in seconds for settings and estimates, e.g. "30 s", "2 min 5 s", "1 h 30 min". */
 export function fmtSecs(secs: number): string {
   if (!Number.isFinite(secs) || secs < 0) return "–";
+  if (secs === 0) return "0 s";
   if (secs < 1) return secs < 0.1 ? "<0.1 s" : `${Number(secs.toFixed(1))} s`;
   if (secs < 10) return `${Number(secs.toFixed(1))} s`;
   if (secs < 60) return `${Math.round(secs)} s`;

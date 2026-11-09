@@ -25,6 +25,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             save_test,
             duplicate_test,
             delete_test,
+            import_asset,
+            preview_data,
+            test_hosts,
+            validate_test,
+            try_flow,
+            send_step,
+            get_samples,
             get_settings,
             save_settings,
         ])

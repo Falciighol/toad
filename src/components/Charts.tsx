@@ -4,18 +4,68 @@ import type { ChartPoint } from "../lib/series";
 import { fmtRps } from "../lib/format";
 import { CardTitle } from "./ui";
 
-// Series are the one place hue carries data: the accent first, then the hues furthest from it (src/lib/theme.ts).
-// The target is a neutral reference line.
+// Series are the one place hue carries data, and never in the accent (src/lib/theme.ts): mint marks actions, selection
+// and the planned load. The target is a neutral reference line.
 export const SERIES = ["var(--series1)", "var(--series2)", "var(--series3)"] as const;
 
-const axis = { stroke: "var(--text4)", fontSize: 11, fontFamily: "var(--mono)", tickLine: false, axisLine: false } as const;
-const tooltipStyle = {
+export const axis = { stroke: "var(--text4)", fontSize: 11, fontFamily: "var(--mono)", tickLine: false, axisLine: false } as const;
+export const tooltipStyle = {
   contentStyle: { background: "var(--panel)", border: "1px solid var(--line2)", borderRadius: 12, boxShadow: "var(--shadow)", fontSize: 12, fontFamily: "var(--mono)", color: "var(--text)" },
   labelStyle: { color: "var(--text3)" },
   cursor: { stroke: "var(--line3)", strokeWidth: 1 },
 };
-const legendStyle = { fontSize: 12, color: "var(--text3)" };
-const fmtMs = (v: number) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+export const legendStyle = { fontSize: 12, color: "var(--text3)" };
+export const fmtMs = (v: number) => (v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+
+/** Axis ticks with one precision for the whole axis, picked from its largest value (no "36.0 / 9.00" mixes). */
+export function tickFmt(max: number): (v: number) => string {
+  const digits = max >= 20 ? 0 : max >= 2 ? 1 : 2;
+  return (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** A 0-based axis on round 1/2/2.5/5×10ⁿ steps, with a little headroom above `max`. */
+export function niceAxis(max: number, n = 4): { domain: [number, number]; ticks: number[] } {
+  const top = Math.max(max, 1e-6) * 1.08;
+  const raw = top / n;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const step = ([1, 2, 2.5, 5].find((m) => m * p >= raw) ?? 10) * p;
+  const end = Math.ceil(top / step) * step;
+  return { domain: [0, end], ticks: Array.from({ length: Math.round(end / step) + 1 }, (_, i) => Number((i * step).toPrecision(12))) };
+}
+
+export type LegendItem = { label: string; color: string; dashed?: boolean; thin?: boolean };
+
+/** What each line is. Charts with more than one line always carry one. */
+export function ChartLegend({ items, className = "" }: { items: LegendItem[]; className?: string }) {
+  return (
+    <ul className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-micro text-text3 ${className}`}>
+      {items.map((it) => (
+        <li key={it.label} className="flex items-center gap-1.5">
+          <svg width="16" height="4" aria-hidden>
+            <line x1="0" x2="16" y1="2" y2="2" stroke={it.color} strokeWidth={it.thin ? 1.5 : 2} strokeDasharray={it.dashed ? "4 3" : undefined} />
+          </svg>
+          {it.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A vertical marker's label. Labels step down in three rows so neighbours (a stage boundary next to a threshold
+ * crossing) don't print over each other or over the top tick.
+ */
+export function markerLabel(text: string, row: number) {
+  return function MarkerLabel(props: { viewBox?: { x?: number; y?: number } }) {
+    const x = props.viewBox?.x ?? 0;
+    const y = (props.viewBox?.y ?? 0) + 10 + (row % 3) * 12;
+    return (
+      <text x={x + 4} y={y} fontSize={10} fill="var(--text4)" fontFamily="var(--sans)">
+        {text}
+      </text>
+    );
+  };
+}
 const tLabel = (t: unknown) => `t = ${String(t)} s`;
 
 /**
@@ -23,7 +73,7 @@ const tLabel = (t: unknown) => `t = ${String(t)} s`;
  * (staggered by `slot`) so no single main-thread task exceeds ~50 ms when a
  * dashboard or summary with several charts appears.
  */
-function useStaggeredMount(slot: number, enabled: boolean): boolean {
+export function useStaggeredMount(slot: number, enabled: boolean): boolean {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!enabled || ready) return;

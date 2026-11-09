@@ -59,14 +59,17 @@ const colorRamp = (h: Hue) => ramp(COLOR_L, COLOR_C, h.chroma, h.hue);
 export const accentSwatch = (a: Accent) => hex(colorRamp(ACCENTS[a].brand)[400]);
 
 /**
- * Chart series are the one place hue carries data. The first is the accent; the others are the candidates furthest
- * from it, in order, so series never blur into each other or into the accent.
+ * Chart series are the one place hue carries data. None of them is the accent: the accent marks the primary action,
+ * selection and the planned load line, so data never borrows it. Series are the first candidates at least 60° from the
+ * accent, in order, so they never blur into each other or into it.
  */
 const SERIES_CANDIDATES: Hue[] = [
   { hue: 50, chroma: 0.16 },
   { hue: 288, chroma: 0.16 },
   { hue: 232, chroma: 0.13 },
   { hue: 340, chroma: 0.16 },
+  { hue: 110, chroma: 0.15 },
+  { hue: 185, chroma: 0.12 },
 ];
 const hueGap = (a: number, b: number) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
 
@@ -133,7 +136,7 @@ export function palette(theme: ResolvedTheme, accent: Accent = DEFAULT_ACCENT): 
   const [success, danger, warning, info] = [pack.success, pack.danger, pack.warning, pack.info].map((h) => status(colorRamp(h), ink));
   const fill = (r: Ramp) => hex(r[dark ? 400 : 600]);
   const tint = dark ? "255 255 255" : "40 32 16";
-  const [series2, series3] = SERIES_CANDIDATES.filter((h) => hueGap(h.hue, pack.brand.hue) >= 60).map((h) => fill(colorRamp(h)));
+  const [series1, series2, series3] = SERIES_CANDIDATES.filter((h) => hueGap(h.hue, pack.brand.hue) >= 60).map((h) => fill(colorRamp(h)));
 
   return {
     bg: dark ? "#000000" : s(100),
@@ -163,7 +166,7 @@ export function palette(theme: ResolvedTheme, accent: Accent = DEFAULT_ACCENT): 
     warningSoft: warning!.soft,
     info: info!.ink,
     infoSoft: info!.soft,
-    series1: fill(brand),
+    series1: series1!,
     series2: series2!,
     series3: series3!,
     grid: dark ? "rgb(255 255 255 / 0.06)" : s(200),

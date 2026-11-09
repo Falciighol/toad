@@ -1,9 +1,10 @@
 import { appendPoint, downsample, MAX_POINTS, type ChartPoint } from "../series";
-import { validateLoad } from "../validate";
-import { defaultLoad } from "../defaults";
 import { fmtDelta, fmtLatency } from "../format";
+import { jsonError } from "../validate";
+import { BUCKETS, quantile, windowStats } from "../hist";
+import { stageOf, toErrors, errorsByStage } from "../stages";
 
-const pt = (t: number): ChartPoint => ({ t, rps: t, target: null, ok: 1, failed: 0, p50: t, p95: t, p99: t, rawP50: t, rawP95: t, rawP99: t });
+const pt = (t: number): ChartPoint => ({ t, rps: t, target: null, ok: 1, failed: 0, p50: t, p95: t, p99: t, rawP50: t, rawP95: t, rawP99: t, vus: 1 });
 
 describe("series downsampling", () => {
   it("never exceeds the point budget and keeps recent data at full resolution", () => {
@@ -12,25 +13,12 @@ describe("series downsampling", () => {
     expect(s.length).toBeLessThanOrEqual(MAX_POINTS);
     expect(s.at(-1)!.t).toBe(5000);
     expect(s.at(-2)!.t).toBe(4999);
-    // Totals are preserved by merging.
     expect(s.reduce((n, p) => n + p.ok, 0)).toBe(5000);
-    // Time stays monotonic.
     for (let i = 1; i < s.length; i++) expect(s[i]!.t).toBeGreaterThan(s[i - 1]!.t);
   });
   it("is a no-op under the budget", () => {
     const s = [pt(1), pt(2)];
     expect(downsample(s)).toEqual(s);
-  });
-});
-
-describe("load validation", () => {
-  const limits = { max_concurrency: 100, max_rps: 1000 };
-  it("accepts defaults within limits", () => {
-    expect(validateLoad({ ...defaultLoad(), concurrency: 50 }, limits)).toEqual({});
-  });
-  it("enforces ceilings and ramp < duration", () => {
-    const e = validateLoad({ ...defaultLoad(), concurrency: 101, rps_cap: 2000, ramp_up_secs: 30, stop: { kind: "duration", secs: 30 } }, limits);
-    expect(Object.keys(e).sort()).toEqual(["load.concurrency", "load.ramp_up_secs", "load.rps_cap"]);
   });
 });
 
@@ -43,5 +31,52 @@ describe("formatting", () => {
   it("formats deltas with sign and percent", () => {
     expect(fmtDelta(100, 150, String)).toBe("+50 (+50.0%)");
     expect(fmtDelta(100, 80, String)).toBe("−20 (−20.0%)");
+  });
+});
+
+describe("templated JSON bodies", () => {
+  it("checks syntax with placeholders filled in", () => {
+    expect(jsonError('{"id": {{$seq}}, "u": "{{user}}"}')).toBeNull();
+    expect(jsonError('{"id": }')).not.toBeNull();
+    expect(jsonError("")).toBeNull();
+  });
+});
+
+describe("window percentiles", () => {
+  it("matches the engine's buckets and interpolates within them", () => {
+    expect(BUCKETS[0]).toBe(100);
+    expect(BUCKETS[63]).toBeGreaterThan(600_000_000);
+    const counts = new Array(64).fill(0);
+    counts[10] = 100;
+    const q = quantile(counts, 0.5)!;
+    expect(q).toBeGreaterThan(BUCKETS[9]!);
+    expect(q).toBeLessThanOrEqual(BUCKETS[10]!);
+    expect(quantile(new Array(64).fill(0), 0.5)).toBeNull();
+  });
+  it("merges only the seconds in the window", () => {
+    const series = [
+      { t_s: 1, ok: 10, failed: 0, p50: 0, p95: 0, p99: 0, hist: [5, 10] },
+      { t_s: 2, ok: 5, failed: 5, p50: 0, p95: 0, p99: 0, hist: [30, 10] },
+    ];
+    const w1 = windowStats(series, 1, 1);
+    expect(w1.count).toBe(10);
+    expect(w1.p99!).toBeLessThanOrEqual(BUCKETS[5]!);
+    const w2 = windowStats(series, 1, 2);
+    expect(w2.failed).toBe(5);
+    expect(w2.p99!).toBeGreaterThan(BUCKETS[29]!);
+  });
+});
+
+describe("stages", () => {
+  it("routes engine field errors to their stage", () => {
+    expect(stageOf("step:r1.url")).toBe("flow");
+    expect(stageOf("scenario:s1.load")).toBe("load");
+    expect(stageOf("data:d1")).toBe("data");
+    expect(stageOf("defaults.success_range")).toBe("checks");
+    expect(stageOf("connection.proxy")).toBe("load");
+    expect(stageOf("threshold:t1")).toBe("checks");
+    const e = toErrors([{ field: "step:a.url", message: "x" }, { field: "step:a.url", message: "y" }, { field: "data:d", message: "z" }]);
+    expect(e["step:a.url"]).toBe("x");
+    expect(errorsByStage(e)).toEqual({ flow: 1, data: 1, load: 0, checks: 0, review: 0 });
   });
 });

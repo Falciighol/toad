@@ -55,10 +55,12 @@ export function History(props: {
                     <button type="button" className="min-w-0 truncate rounded-sm text-left font-medium text-text underline-offset-2 hover:text-accent-ink hover:underline" title="Open run" onClick={() => props.onOpen(r.run_id)}>
                       {r.config.name}
                     </button>
-                    {r.end_reason !== "completed" && <Pill tone={r.end_reason === "failed" ? "danger" : "neutral"}>{r.end_reason === "failed" ? "Failed" : "Stopped"}</Pill>}
+                    {r.end_reason !== "completed" && <Pill tone={r.end_reason === "stopped" ? "neutral" : "danger"}>{r.end_reason === "failed" ? "Failed" : r.end_reason === "aborted" ? "Aborted" : "Stopped"}</Pill>}
+                    {(r.verdict ?? []).length > 0 && (r.verdict!.every((v) => v.passed || v.pending) ? <Pill tone="success">Pass</Pill> : <Pill tone="danger">Fail</Pill>)}
                   </div>
                   <div className="truncate text-small text-text3">
-                    {fmtDate(r.started_at)} · <span className="font-mono text-text4">{r.config.request.method} {r.config.request.url}</span>
+                    {fmtDate(r.started_at)} · {r.endpoints && r.endpoints.length ? `${r.endpoints.filter((e) => e.phase === "main").length} endpoints` : "1 endpoint"}
+                    {r.env?.environment ? ` · ${r.env.environment}` : ""}
                   </div>
                 </td>
                 <td className="px-2 py-2 text-right font-mono text-small whitespace-nowrap">{fmtInt(r.totals.total)}</td>

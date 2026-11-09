@@ -57,7 +57,7 @@ export function SettingsDialog(props: { open: boolean; settings: Settings; onClo
   };
 
   return (
-    <dialog ref={ref} onClose={props.onClose} className="floating animate-pop m-auto w-[460px] max-w-[calc(100vw-2rem)] p-0 text-text backdrop:bg-(--overlay) backdrop:backdrop-blur-[4px]">
+    <dialog ref={ref} onClose={props.onClose} className="floating animate-pop m-auto max-h-[calc(100vh-2rem)] w-[520px] overflow-y-auto max-w-[calc(100vw-2rem)] p-0 text-text backdrop:bg-(--overlay) backdrop:backdrop-blur-[4px]">
       <form method="dialog" className="space-y-4 p-5" onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <h2 className="text-title font-semibold">Settings</h2>
         <AccentPicker />
@@ -72,9 +72,23 @@ export function SettingsDialog(props: { open: boolean; settings: Settings; onClo
             {(id) => <NumberInput id={id} min={1} value={draft.history_limit} onChange={(v) => set({ history_limit: v ?? 0 })} />}
           </Field>
         </div>
+        <div className="border-t border-line pt-4">
+          <div className="mb-1 text-body text-text">Samples kept per endpoint</div>
+          <p className="mb-3 text-small text-text3">Real requests and responses saved with each run for the analysis.</p>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Failures, per kind">{(id) => <NumberInput id={id} min={0} value={draft.sample_failures ?? 200} onChange={(v) => set({ sample_failures: v ?? 0 })} />}</Field>
+            <Field label="Slowest">{(id) => <NumberInput id={id} min={0} value={draft.sample_slowest ?? 50} onChange={(v) => set({ sample_slowest: v ?? 0 })} />}</Field>
+            <Field label="Random">{(id) => <NumberInput id={id} min={0} value={draft.sample_random ?? 100} onChange={(v) => set({ sample_random: v ?? 0 })} />}</Field>
+            <Field label="Body size cap">{(id) => <NumberInput id={id} suffix="KB" min={1} value={draft.sample_body_kb ?? 64} onChange={(v) => set({ sample_body_kb: v ?? 0 })} />}</Field>
+            <Field label="Per run, at most">{(id) => <NumberInput id={id} suffix="MB" min={1} value={draft.sample_run_mb ?? 50} onChange={(v) => set({ sample_run_mb: v ?? 0 })} />}</Field>
+          </div>
+          <div className="mt-3">
+            <Toggle label="Keep bodies" hint="Off: only status, headers and timing are kept (for targets with personal data)." checked={draft.sample_bodies ?? true} onChange={(v) => set({ sample_bodies: v })} />
+          </div>
+        </div>
         <div className="space-y-3 border-t border-line pt-4">
-          <Toggle label="Strip secrets from exports" hint="Bearer tokens and Authorization / Cookie / X-API-Key values." checked={draft.strip_secrets_on_export} onChange={(v) => set({ strip_secrets_on_export: v })} />
-          <Toggle label="Keep secrets in run history" hint="Off: history files store those values as [redacted]." checked={draft.store_secrets_in_history} onChange={(v) => set({ store_secrets_in_history: v })} />
+          <Toggle label="Strip secrets from exports" hint="Auth credentials, secret variables, and Authorization / Cookie / X-API-Key values." checked={draft.strip_secrets_on_export} onChange={(v) => set({ strip_secrets_on_export: v })} />
+          <Toggle label="Keep secrets in run history" hint="Off: history files and samples store those values as [redacted]." checked={draft.store_secrets_in_history} onChange={(v) => set({ store_secrets_in_history: v })} />
           <Toggle label="Treat private networks as local" hint="Skip the confirmation for 10/8, 172.16/12, 192.168/16 and IPv6 ULA targets." checked={draft.private_ranges_as_local} onChange={(v) => set({ private_ranges_as_local: v })} />
         </div>
         <p className="rounded-lg bg-raised px-3 py-2 text-small text-text3">

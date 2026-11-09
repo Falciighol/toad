@@ -1,11 +1,13 @@
 {
-  "run_id": "1793919356791",
+  "run_id": "1794000385884",
   "config": {
+    "version": 2,
     "id": "sample",
-    "name": "Mock API · 200 workers",
-    "request": {
-      "method": "GET",
-      "url": "http://127.0.0.1:8787/api/items",
+    "name": "Shop API · checkout flow",
+    "created_at": 1788000000000,
+    "updated_at": 1788700000000,
+    "defaults": {
+      "base_url": "",
       "headers": [
         {
           "name": "Accept",
@@ -13,349 +15,4545 @@
           "enabled": true
         }
       ],
-      "body": null,
-      "bearer": null
-    },
-    "load": {
-      "concurrency": 200,
-      "stop": {
-        "kind": "duration",
-        "secs": 20
+      "auth": {
+        "kind": "none"
       },
-      "rps_cap": null,
-      "ramp_up_secs": 5,
-      "timeout_ms": 10000,
+      "user_agent": "",
+      "timeout_ms": 5000,
       "success_range": {
         "min": 200,
         "max": 399
       },
       "follow_redirects": true,
-      "allow_invalid_certs": false
+      "max_redirects": 5,
+      "max_response_kb": 1024
     },
-    "created_at": 0,
-    "updated_at": 0
+    "environments": [
+      {
+        "id": "e-local",
+        "name": "local"
+      },
+      {
+        "id": "e-stage",
+        "name": "staging"
+      }
+    ],
+    "active_env": "e-local",
+    "variables": [
+      {
+        "name": "baseUrl",
+        "secret": false,
+        "values": {
+          "e-local": "http://127.0.0.1:8787",
+          "e-stage": "https://staging.shop.test"
+        }
+      },
+      {
+        "name": "apiKey",
+        "secret": true,
+        "values": {
+          "e-local": "local-dev-key",
+          "e-stage": ""
+        }
+      }
+    ],
+    "data": [
+      {
+        "id": "d-users",
+        "name": "users",
+        "file": "users.csv",
+        "original_name": "users.csv",
+        "format": "csv",
+        "has_header": true,
+        "columns": [
+          "name",
+          "plan"
+        ],
+        "secret_columns": [],
+        "rows": 8,
+        "distribution": "sequential",
+        "on_exhausted": "wrap"
+      }
+    ],
+    "cookies": {
+      "mode": "per_vu",
+      "clear_each_iteration": false,
+      "seed": []
+    },
+    "connection": {
+      "keep_alive": true,
+      "pool": "shared",
+      "http": "auto",
+      "allow_invalid_certs": false,
+      "host_overrides": [],
+      "client_certs": [],
+      "proxy": {
+        "enabled": false,
+        "kind": "http",
+        "address": "",
+        "username": "",
+        "password": "",
+        "no_proxy": ""
+      }
+    },
+    "setup": [],
+    "teardown": [],
+    "scenarios": [
+      {
+        "id": "s-shop",
+        "name": "Shopper",
+        "kind": "flow",
+        "enabled": true,
+        "init": [],
+        "steps": [
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-login",
+              "name": "Log in",
+              "method": "POST",
+              "url": "{{baseUrl}}/login",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": {
+                "kind": "json",
+                "content": "{\n  \"user\": \"{{users.name}}\"\n}",
+                "fields": [],
+                "variables": "",
+                "file": null,
+                "content_type": "",
+                "gzip": false
+              },
+              "auth": {
+                "kind": "inherit"
+              },
+              "values": [],
+              "extract": [
+                {
+                  "id": "x-tok",
+                  "var": "token",
+                  "source": "json",
+                  "expr": "$.token",
+                  "pick": "first",
+                  "index": 0,
+                  "default": "",
+                  "on_missing": "skip_iteration",
+                  "secret": true,
+                  "enabled": true
+                }
+              ],
+              "checks": [],
+              "run_if": null,
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 1
+            }
+          },
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-orders",
+              "name": "List orders",
+              "method": "GET",
+              "url": "{{baseUrl}}/orders",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": null,
+              "auth": {
+                "kind": "bearer",
+                "token": "{{token}}"
+              },
+              "values": [],
+              "extract": [
+                {
+                  "id": "x-first",
+                  "var": "firstOrder",
+                  "source": "json",
+                  "expr": "$.orders[0].id",
+                  "pick": "first",
+                  "index": 0,
+                  "default": "",
+                  "on_missing": "use_default",
+                  "secret": false,
+                  "enabled": true
+                }
+              ],
+              "checks": [
+                {
+                  "id": "c-count",
+                  "kind": "json",
+                  "expr": "$.count",
+                  "op": "equals",
+                  "value": "2",
+                  "fails_request": true,
+                  "enabled": true
+                }
+              ],
+              "run_if": null,
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 1
+            }
+          },
+          {
+            "kind": "group",
+            "group": {
+              "id": "g-assets",
+              "name": "Profile page",
+              "steps": [
+                {
+                  "id": "r-me",
+                  "name": "Session",
+                  "method": "GET",
+                  "url": "{{baseUrl}}/me",
+                  "params": [],
+                  "headers": [],
+                  "cookies": [],
+                  "cookie_mode": "jar",
+                  "body": null,
+                  "auth": {
+                    "kind": "inherit"
+                  },
+                  "values": [],
+                  "extract": [],
+                  "checks": [],
+                  "run_if": null,
+                  "timeout_ms": null,
+                  "follow_redirects": null,
+                  "max_response_kb": null,
+                  "weight": 1
+                },
+                {
+                  "id": "r-xml",
+                  "name": "Order XML",
+                  "method": "GET",
+                  "url": "{{baseUrl}}/xml",
+                  "params": [],
+                  "headers": [],
+                  "cookies": [],
+                  "cookie_mode": "jar",
+                  "body": null,
+                  "auth": {
+                    "kind": "inherit"
+                  },
+                  "values": [],
+                  "extract": [
+                    {
+                      "id": "x-oid",
+                      "var": "orderXml",
+                      "source": "xpath",
+                      "expr": "/order/@id",
+                      "pick": "first",
+                      "index": 0,
+                      "default": "",
+                      "on_missing": "use_default",
+                      "secret": false,
+                      "enabled": true
+                    }
+                  ],
+                  "checks": [],
+                  "run_if": null,
+                  "timeout_ms": null,
+                  "follow_redirects": null,
+                  "max_response_kb": null,
+                  "weight": 1
+                }
+              ],
+              "run_if": null
+            }
+          },
+          {
+            "kind": "pause",
+            "pause": {
+              "id": "p-think",
+              "think": {
+                "kind": "uniform",
+                "min_ms": 100,
+                "max_ms": 300
+              },
+              "run_if": null
+            }
+          },
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-cancel",
+              "name": "Cancel order",
+              "method": "DELETE",
+              "url": "{{baseUrl}}/echo?order={{firstOrder}}",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": null,
+              "auth": {
+                "kind": "inherit"
+              },
+              "values": [],
+              "extract": [],
+              "checks": [],
+              "run_if": {
+                "mode": "all",
+                "clauses": [
+                  {
+                    "subject": "variable",
+                    "name": "users.plan",
+                    "op": "equals",
+                    "value": "pro"
+                  }
+                ]
+              },
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 1
+            }
+          },
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-legacy",
+              "name": "Legacy lookup",
+              "method": "GET",
+              "url": "{{baseUrl}}/status/404",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": null,
+              "auth": {
+                "kind": "inherit"
+              },
+              "values": [],
+              "extract": [],
+              "checks": [],
+              "run_if": null,
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 1
+            }
+          }
+        ],
+        "executor": {
+          "kind": "ramping_vus",
+          "start": 1,
+          "stages": [
+            {
+              "duration_secs": 6,
+              "target": 40
+            },
+            {
+              "duration_secs": 8,
+              "target": 40
+            },
+            {
+              "duration_secs": 3,
+              "target": 0
+            }
+          ]
+        },
+        "start_offset_secs": 0,
+        "graceful_stop_secs": 2,
+        "think": null
+      },
+      {
+        "id": "s-browse",
+        "name": "Browse",
+        "kind": "mix",
+        "enabled": true,
+        "init": [],
+        "steps": [
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-page",
+              "name": "Catalog page",
+              "method": "GET",
+              "url": "{{baseUrl}}/echo?page={{$randomInt(1,50)}}",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": null,
+              "auth": {
+                "kind": "inherit"
+              },
+              "values": [],
+              "extract": [],
+              "checks": [],
+              "run_if": null,
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 3
+            }
+          },
+          {
+            "kind": "request",
+            "step": {
+              "id": "r-search",
+              "name": "Search",
+              "method": "GET",
+              "url": "{{baseUrl}}/echo?q={{$pick(toad,pond,lily)}}",
+              "params": [],
+              "headers": [],
+              "cookies": [],
+              "cookie_mode": "jar",
+              "body": null,
+              "auth": {
+                "kind": "inherit"
+              },
+              "values": [],
+              "extract": [],
+              "checks": [],
+              "run_if": null,
+              "timeout_ms": null,
+              "follow_redirects": null,
+              "max_response_kb": null,
+              "weight": 1
+            }
+          }
+        ],
+        "executor": {
+          "kind": "rate",
+          "rate": 60,
+          "duration_secs": 14,
+          "max_vus": 20
+        },
+        "start_offset_secs": 2,
+        "graceful_stop_secs": 2,
+        "think": null
+      }
+    ],
+    "thresholds": [
+      {
+        "id": "t-p95",
+        "metric": "p95",
+        "scope": "step:r-orders",
+        "op": "lt",
+        "value": 40.0,
+        "abort": false,
+        "delay_secs": 0,
+        "enabled": true
+      },
+      {
+        "id": "t-err",
+        "metric": "error_rate",
+        "scope": "scenario:s-browse",
+        "op": "lt",
+        "value": 1.0,
+        "abort": false,
+        "delay_secs": 0,
+        "enabled": true
+      },
+      {
+        "id": "t-p99",
+        "metric": "p99",
+        "scope": "",
+        "op": "lt",
+        "value": 250.0,
+        "abort": false,
+        "delay_secs": 0,
+        "enabled": true
+      }
+    ],
+    "warmup_secs": 2
   },
-  "started_at": 1793919356791,
-  "ended_at": 1793919376819,
+  "started_at": 1794000385887,
+  "ended_at": 1794000403057,
   "end_reason": "completed",
   "error": null,
   "totals": {
-    "total": 163371,
-    "ok": 161750,
-    "failed": 1621,
+    "total": 10045,
+    "ok": 8235,
+    "failed": 1810,
     "cancelled": 0,
     "status_counts": [
       {
         "code": 200,
-        "count": 161750
+        "count": 8235
+      },
+      {
+        "code": 404,
+        "count": 1695
       },
       {
         "code": 500,
-        "count": 1621
+        "count": 115
       }
     ],
     "error_counts": [
       {
         "kind": "status",
-        "count": 1621
+        "count": 1810
       }
     ]
   },
   "latency_corrected": {
-    "min": 15280,
-    "mean": 21428,
-    "p50": 21455,
-    "p90": 25439,
-    "p95": 25983,
-    "p99": 26751,
-    "max": 29263,
-    "count": 163371
+    "min": 15440,
+    "mean": 21804,
+    "p50": 21823,
+    "p90": 25807,
+    "p95": 26495,
+    "p99": 27663,
+    "max": 35135,
+    "count": 10045
   },
   "latency_raw": {
-    "min": 15280,
-    "mean": 21428,
-    "p50": 21455,
-    "p90": 25439,
-    "p95": 25983,
-    "p99": 26751,
-    "max": 29263,
-    "count": 163371
+    "min": 15440,
+    "mean": 21696,
+    "p50": 21727,
+    "p90": 25663,
+    "p95": 26303,
+    "p99": 27375,
+    "max": 35135,
+    "count": 10045
   },
   "ttfb": {
-    "min": 15280,
-    "mean": 21428,
-    "p50": 21455,
-    "p90": 25439,
-    "p95": 25983,
-    "p99": 26751,
-    "max": 29263,
-    "count": 163371
+    "min": 15440,
+    "mean": 21692,
+    "p50": 21727,
+    "p90": 25663,
+    "p95": 26303,
+    "p99": 27375,
+    "max": 35135,
+    "count": 10045
   },
-  "duration_ms": 20025,
-  "achieved_rps": 8158.396756124411,
-  "bytes": 10368210,
-  "capped": false,
+  "duration_ms": 17168,
+  "achieved_rps": 585.0942024009532,
+  "bytes": 616587,
+  "capped": true,
   "warnings": [],
   "series": [
     {
       "t_s": 1,
-      "rps": 926.6594137457531,
-      "ok": 922,
-      "failed": 5,
-      "bytes": 59058,
-      "p50": 21535,
-      "p95": 25919,
-      "p99": 26511,
-      "raw_p50": 21535,
-      "raw_p95": 25919,
-      "raw_p99": 26511
+      "rps": 83.81798221091849,
+      "ok": 70,
+      "failed": 14,
+      "bytes": 4438,
+      "p50": 21935,
+      "p95": 27503,
+      "p99": 29199,
+      "raw_p50": 21935,
+      "raw_p95": 27503,
+      "raw_p99": 29199,
+      "vus": 8,
+      "iterations": 13
     },
     {
       "t_s": 2,
-      "rps": 2808.6281031339995,
-      "ok": 2788,
-      "failed": 22,
-      "bytes": 178652,
-      "p50": 21263,
-      "p95": 25775,
-      "p99": 26495,
-      "raw_p50": 21263,
-      "raw_p95": 25775,
-      "raw_p99": 26495
+      "rps": 192.22190423402012,
+      "ok": 157,
+      "failed": 35,
+      "bytes": 10250,
+      "p50": 22207,
+      "p95": 27039,
+      "p99": 28463,
+      "raw_p50": 22207,
+      "raw_p95": 27039,
+      "raw_p99": 28463,
+      "vus": 15,
+      "iterations": 33
     },
     {
       "t_s": 3,
-      "rps": 4662.84827647571,
-      "ok": 4614,
-      "failed": 50,
-      "bytes": 295796,
-      "p50": 21295,
-      "p95": 25871,
-      "p99": 26655,
-      "raw_p50": 21295,
-      "raw_p95": 25871,
-      "raw_p99": 26655
+      "rps": 367.54407700932114,
+      "ok": 313,
+      "failed": 55,
+      "bytes": 25052,
+      "p50": 21951,
+      "p95": 26751,
+      "p99": 28719,
+      "raw_p50": 21679,
+      "raw_p95": 26335,
+      "raw_p99": 27263,
+      "vus": 23,
+      "iterations": 112
     },
     {
       "t_s": 4,
-      "rps": 6523.958544546741,
-      "ok": 6460,
-      "failed": 62,
-      "bytes": 414060,
-      "p50": 21375,
-      "p95": 25903,
-      "p99": 26735,
-      "raw_p50": 21375,
-      "raw_p95": 25903,
-      "raw_p99": 26735
+      "rps": 496.08141936295294,
+      "ok": 409,
+      "failed": 87,
+      "bytes": 32253,
+      "p50": 21807,
+      "p95": 26303,
+      "p99": 27727,
+      "raw_p50": 21471,
+      "raw_p95": 26031,
+      "raw_p99": 26895,
+      "vus": 29,
+      "iterations": 141
     },
     {
       "t_s": 5,
-      "rps": 8369.561943280507,
-      "ok": 8278,
-      "failed": 88,
-      "bytes": 530672,
-      "p50": 21455,
-      "p95": 25935,
-      "p99": 26719,
-      "raw_p50": 21455,
-      "raw_p95": 25935,
-      "raw_p99": 26719
+      "rps": 608.5017602069368,
+      "ok": 501,
+      "failed": 107,
+      "bytes": 37837,
+      "p50": 21695,
+      "p95": 26943,
+      "p99": 27711,
+      "raw_p50": 21551,
+      "raw_p95": 26399,
+      "raw_p99": 27375,
+      "vus": 36,
+      "iterations": 163
     },
     {
       "t_s": 6,
-      "rps": 9334.124168835717,
-      "ok": 9238,
-      "failed": 102,
-      "bytes": 592252,
-      "p50": 21311,
-      "p95": 25983,
-      "p99": 26751,
-      "raw_p50": 21311,
-      "raw_p95": 25983,
-      "raw_p99": 26751
+      "rps": 708.3262727894036,
+      "ok": 588,
+      "failed": 120,
+      "bytes": 43379,
+      "p50": 21791,
+      "p95": 26735,
+      "p99": 27839,
+      "raw_p50": 21663,
+      "raw_p95": 26383,
+      "raw_p99": 27839,
+      "vus": 42,
+      "iterations": 173
     },
     {
       "t_s": 7,
-      "rps": 9332.114890537068,
-      "ok": 9241,
-      "failed": 89,
-      "bytes": 592314,
-      "p50": 21503,
-      "p95": 26015,
-      "p99": 26799,
-      "raw_p50": 21503,
-      "raw_p95": 26015,
-      "raw_p99": 26799
+      "rps": 795.9653420770753,
+      "ok": 655,
+      "failed": 141,
+      "bytes": 49214,
+      "p50": 21583,
+      "p95": 26383,
+      "p99": 27343,
+      "raw_p50": 21519,
+      "raw_p95": 26175,
+      "raw_p99": 27263,
+      "vus": 41,
+      "iterations": 195
     },
     {
       "t_s": 8,
-      "rps": 9282.062227305058,
-      "ok": 9194,
-      "failed": 91,
-      "bytes": 589326,
-      "p50": 21535,
-      "p95": 26095,
-      "p99": 26831,
-      "raw_p50": 21535,
-      "raw_p95": 26095,
-      "raw_p99": 26831
+      "rps": 777.6124255253195,
+      "ok": 636,
+      "failed": 142,
+      "bytes": 47753,
+      "p50": 21823,
+      "p95": 26591,
+      "p99": 27759,
+      "raw_p50": 21695,
+      "raw_p95": 26495,
+      "raw_p99": 27599,
+      "vus": 42,
+      "iterations": 198
     },
     {
       "t_s": 9,
-      "rps": 9311.766944844721,
-      "ok": 9200,
-      "failed": 105,
-      "bytes": 589850,
+      "rps": 779.1606044795983,
+      "ok": 643,
+      "failed": 136,
+      "bytes": 47482,
       "p50": 21535,
-      "p95": 25999,
-      "p99": 26751,
-      "raw_p50": 21535,
-      "raw_p95": 25999,
-      "raw_p99": 26751
+      "p95": 26319,
+      "p99": 27535,
+      "raw_p50": 21343,
+      "raw_p95": 26207,
+      "raw_p99": 27263,
+      "vus": 42,
+      "iterations": 192
     },
     {
       "t_s": 10,
-      "rps": 9327.502526980226,
-      "ok": 9248,
-      "failed": 80,
-      "bytes": 592672,
-      "p50": 21535,
-      "p95": 25983,
-      "p99": 26735,
-      "raw_p50": 21535,
-      "raw_p95": 25983,
-      "raw_p99": 26735
+      "rps": 766.6925240967512,
+      "ok": 627,
+      "failed": 140,
+      "bytes": 47280,
+      "p50": 21695,
+      "p95": 26399,
+      "p99": 27359,
+      "raw_p50": 21663,
+      "raw_p95": 26047,
+      "raw_p99": 27215,
+      "vus": 42,
+      "iterations": 194
     },
     {
       "t_s": 11,
-      "rps": 9326.462428123168,
-      "ok": 9225,
-      "failed": 104,
-      "bytes": 591440,
-      "p50": 21471,
-      "p95": 26031,
-      "p99": 26783,
-      "raw_p50": 21471,
-      "raw_p95": 26031,
-      "raw_p99": 26783
+      "rps": 786.2278259963933,
+      "ok": 644,
+      "failed": 143,
+      "bytes": 48093,
+      "p50": 21999,
+      "p95": 26495,
+      "p99": 28111,
+      "raw_p50": 21919,
+      "raw_p95": 26463,
+      "raw_p99": 27599,
+      "vus": 42,
+      "iterations": 195
     },
     {
       "t_s": 12,
-      "rps": 9293.311325929419,
-      "ok": 9207,
-      "failed": 86,
-      "bytes": 590108,
-      "p50": 21535,
-      "p95": 26015,
-      "p99": 26799,
-      "raw_p50": 21535,
-      "raw_p95": 26015,
-      "raw_p99": 26799
+      "rps": 789.1625018657359,
+      "ok": 647,
+      "failed": 141,
+      "bytes": 48170,
+      "p50": 21807,
+      "p95": 26431,
+      "p99": 27375,
+      "raw_p50": 21775,
+      "raw_p95": 26223,
+      "raw_p99": 27183,
+      "vus": 41,
+      "iterations": 199
     },
     {
       "t_s": 13,
-      "rps": 9325.10975391818,
-      "ok": 9232,
-      "failed": 98,
-      "bytes": 591828,
-      "p50": 21471,
-      "p95": 25999,
-      "p99": 26767,
-      "raw_p50": 21471,
-      "raw_p95": 25999,
-      "raw_p99": 26767
+      "rps": 788.7323570830738,
+      "ok": 645,
+      "failed": 144,
+      "bytes": 47747,
+      "p50": 21807,
+      "p95": 26191,
+      "p99": 27455,
+      "raw_p50": 21663,
+      "raw_p95": 26063,
+      "raw_p99": 27119,
+      "vus": 42,
+      "iterations": 197
     },
     {
       "t_s": 14,
-      "rps": 9351.244879471775,
-      "ok": 9250,
-      "failed": 96,
-      "bytes": 592960,
-      "p50": 21487,
-      "p95": 25983,
-      "p99": 26719,
-      "raw_p50": 21487,
-      "raw_p95": 25983,
-      "raw_p99": 26719
+      "rps": 786.6642910138099,
+      "ok": 639,
+      "failed": 148,
+      "bytes": 46867,
+      "p50": 22047,
+      "p95": 26351,
+      "p99": 27023,
+      "raw_p50": 22015,
+      "raw_p95": 26143,
+      "raw_p99": 26815,
+      "vus": 41,
+      "iterations": 204
     },
     {
       "t_s": 15,
-      "rps": 9380.797175366613,
-      "ok": 9295,
-      "failed": 91,
-      "bytes": 595790,
-      "p50": 21215,
-      "p95": 25791,
-      "p99": 26703,
-      "raw_p50": 21215,
-      "raw_p95": 25791,
-      "raw_p99": 26703
+      "rps": 702.1816367939454,
+      "ok": 572,
+      "failed": 131,
+      "bytes": 42513,
+      "p50": 21887,
+      "p95": 26303,
+      "p99": 27343,
+      "raw_p50": 21791,
+      "raw_p95": 26207,
+      "raw_p99": 27007,
+      "vus": 30,
+      "iterations": 183
     },
     {
       "t_s": 16,
-      "rps": 9368.332539196304,
-      "ok": 9284,
-      "failed": 79,
-      "bytes": 594966,
-      "p50": 21343,
-      "p95": 25935,
-      "p99": 26719,
-      "raw_p50": 21343,
-      "raw_p95": 25935,
-      "raw_p99": 26719
+      "rps": 459.55500825991555,
+      "ok": 374,
+      "failed": 85,
+      "bytes": 30062,
+      "p50": 21887,
+      "p95": 26783,
+      "p99": 27471,
+      "raw_p50": 21807,
+      "raw_p95": 26527,
+      "raw_p99": 27471,
+      "vus": 18,
+      "iterations": 141
     },
     {
       "t_s": 17,
-      "rps": 9322.92425124046,
-      "ok": 9218,
-      "failed": 105,
-      "bytes": 591002,
-      "p50": 21407,
-      "p95": 25967,
-      "p99": 26751,
-      "raw_p50": 21407,
-      "raw_p95": 25967,
-      "raw_p99": 26751
-    },
-    {
-      "t_s": 18,
-      "rps": 9312.623896725412,
-      "ok": 9238,
-      "failed": 80,
-      "bytes": 592032,
-      "p50": 21471,
-      "p95": 26047,
-      "p99": 26783,
-      "raw_p50": 21471,
-      "raw_p95": 26047,
-      "raw_p99": 26783
-    },
-    {
-      "t_s": 19,
-      "rps": 9302.878468747163,
-      "ok": 9217,
-      "failed": 83,
-      "bytes": 590718,
-      "p50": 21551,
-      "p95": 25999,
-      "p99": 26655,
-      "raw_p50": 21551,
-      "raw_p95": 25999,
-      "raw_p99": 26655
-    },
-    {
-      "t_s": 20,
-      "rps": 9283.140914050522,
-      "ok": 9401,
-      "failed": 105,
-      "bytes": 602714,
-      "p50": 21519,
-      "p95": 25999,
-      "p99": 26831,
-      "raw_p50": 21519,
-      "raw_p95": 25999,
-      "raw_p99": 26831
+      "rps": 133.8421054137929,
+      "ok": 115,
+      "failed": 41,
+      "bytes": 8197,
+      "p50": 21791,
+      "p95": 26911,
+      "p99": 27679,
+      "raw_p50": 21791,
+      "raw_p95": 26911,
+      "raw_p99": 27679,
+      "vus": 2,
+      "iterations": 42
     }
-  ]
+  ],
+  "outcomes": {
+    "skipped": 115,
+    "not_taken": 1090,
+    "blocked": 0,
+    "build_errors": 0,
+    "dropped": 0,
+    "check_failures": 17,
+    "extract_failures": 62,
+    "iterations": 2575,
+    "iterations_failed": 1744
+  },
+  "endpoints": [
+    {
+      "step_id": "r-login",
+      "name": "Log in",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": null,
+      "method": "POST",
+      "url": "{{baseUrl}}/login",
+      "totals": {
+        "total": 1735,
+        "ok": 1712,
+        "failed": 23,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 1712
+          },
+          {
+            "code": 500,
+            "count": 23
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 23
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 0,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 23,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [
+        {
+          "id": "x-tok",
+          "count": 23
+        }
+      ],
+      "latency": {
+        "min": 15744,
+        "mean": 21831,
+        "p50": 22015,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27647,
+        "max": 30463,
+        "count": 1735
+      },
+      "latency_raw": {
+        "min": 15744,
+        "mean": 21831,
+        "p50": 22015,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27647,
+        "max": 30463,
+        "count": 1735
+      },
+      "ttfb": {
+        "min": 15744,
+        "mean": 21827,
+        "p50": 22015,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27647,
+        "max": 30463,
+        "count": 1735
+      },
+      "bytes": 92722,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 15744
+        },
+        {
+          "q": 0.1,
+          "us": 17663
+        },
+        {
+          "q": 0.25,
+          "us": 19327
+        },
+        {
+          "q": 0.5,
+          "us": 22015
+        },
+        {
+          "q": 0.75,
+          "us": 24319
+        },
+        {
+          "q": 0.8,
+          "us": 24831
+        },
+        {
+          "q": 0.85,
+          "us": 25343
+        },
+        {
+          "q": 0.9,
+          "us": 25855
+        },
+        {
+          "q": 0.925,
+          "us": 26111
+        },
+        {
+          "q": 0.95,
+          "us": 26367
+        },
+        {
+          "q": 0.96,
+          "us": 26495
+        },
+        {
+          "q": 0.97,
+          "us": 26751
+        },
+        {
+          "q": 0.98,
+          "us": 27007
+        },
+        {
+          "q": 0.99,
+          "us": 27647
+        },
+        {
+          "q": 0.993,
+          "us": 27903
+        },
+        {
+          "q": 0.995,
+          "us": 28031
+        },
+        {
+          "q": 0.997,
+          "us": 28671
+        },
+        {
+          "q": 0.999,
+          "us": 29951
+        },
+        {
+          "q": 0.9995,
+          "us": 30463
+        },
+        {
+          "q": 0.9999,
+          "us": 30463
+        },
+        {
+          "q": 0.99999,
+          "us": 30463
+        },
+        {
+          "q": 1.0,
+          "us": 30463
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 18,
+          "failed": 2,
+          "p50": 22271,
+          "p95": 27519,
+          "p99": 29311,
+          "hist": [
+            20,
+            3,
+            21,
+            14,
+            22,
+            3
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 38,
+          "failed": 2,
+          "p50": 23807,
+          "p95": 26623,
+          "p99": 27519,
+          "hist": [
+            20,
+            1,
+            21,
+            23,
+            22,
+            16
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 58,
+          "failed": 1,
+          "p50": 22399,
+          "p95": 26623,
+          "p99": 28671,
+          "hist": [
+            20,
+            14,
+            21,
+            33,
+            22,
+            12
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 85,
+          "failed": 2,
+          "p50": 22271,
+          "p95": 26239,
+          "p99": 27391,
+          "hist": [
+            20,
+            18,
+            21,
+            49,
+            22,
+            20
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 105,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 27007,
+          "p99": 27519,
+          "hist": [
+            20,
+            33,
+            21,
+            49,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 119,
+          "failed": 1,
+          "p50": 22015,
+          "p95": 26495,
+          "p99": 27903,
+          "hist": [
+            20,
+            18,
+            21,
+            78,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 137,
+          "failed": 1,
+          "p50": 21887,
+          "p95": 26239,
+          "p99": 26751,
+          "hist": [
+            20,
+            26,
+            21,
+            86,
+            22,
+            26
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 137,
+          "failed": 0,
+          "p50": 21887,
+          "p95": 26879,
+          "p99": 27903,
+          "hist": [
+            20,
+            36,
+            21,
+            69,
+            22,
+            32
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 130,
+          "failed": 1,
+          "p50": 21375,
+          "p95": 25855,
+          "p99": 27263,
+          "hist": [
+            20,
+            32,
+            21,
+            81,
+            22,
+            18
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 134,
+          "failed": 2,
+          "p50": 22399,
+          "p95": 26111,
+          "p99": 26751,
+          "hist": [
+            20,
+            24,
+            21,
+            84,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 133,
+          "failed": 1,
+          "p50": 21887,
+          "p95": 26495,
+          "p99": 28159,
+          "hist": [
+            20,
+            23,
+            21,
+            87,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 134,
+          "failed": 4,
+          "p50": 22399,
+          "p95": 26239,
+          "p99": 27391,
+          "hist": [
+            20,
+            33,
+            21,
+            78,
+            22,
+            27
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 136,
+          "failed": 3,
+          "p50": 21887,
+          "p95": 26111,
+          "p99": 27775,
+          "hist": [
+            20,
+            32,
+            21,
+            78,
+            22,
+            29
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 135,
+          "failed": 1,
+          "p50": 21631,
+          "p95": 26367,
+          "p99": 26879,
+          "hist": [
+            20,
+            33,
+            21,
+            76,
+            22,
+            27
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 119,
+          "failed": 1,
+          "p50": 21631,
+          "p95": 26239,
+          "p99": 26879,
+          "hist": [
+            20,
+            34,
+            21,
+            57,
+            22,
+            29
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 70,
+          "failed": 0,
+          "p50": 22271,
+          "p95": 26367,
+          "p99": 27007,
+          "hist": [
+            20,
+            20,
+            21,
+            35,
+            22,
+            15
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 24,
+          "failed": 0,
+          "p50": 20863,
+          "p95": 25343,
+          "p99": 25727,
+          "hist": [
+            20,
+            5,
+            21,
+            15,
+            22,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-orders",
+      "name": "List orders",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": null,
+      "method": "GET",
+      "url": "{{baseUrl}}/orders",
+      "totals": {
+        "total": 1712,
+        "ok": 1695,
+        "failed": 17,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 1695
+          },
+          {
+            "code": 500,
+            "count": 17
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 17
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 23,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 17,
+        "extract_failures": 17,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [
+        {
+          "id": "c-count",
+          "count": 17
+        }
+      ],
+      "extract_failures": [
+        {
+          "id": "x-first",
+          "count": 17
+        }
+      ],
+      "latency": {
+        "min": 15424,
+        "mean": 21648,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27391,
+        "max": 30975,
+        "count": 1712
+      },
+      "latency_raw": {
+        "min": 15424,
+        "mean": 21648,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27391,
+        "max": 30975,
+        "count": 1712
+      },
+      "ttfb": {
+        "min": 15424,
+        "mean": 21643,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27391,
+        "max": 30975,
+        "count": 1712
+      },
+      "bytes": 106955,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 15424
+        },
+        {
+          "q": 0.1,
+          "us": 17791
+        },
+        {
+          "q": 0.25,
+          "us": 19327
+        },
+        {
+          "q": 0.5,
+          "us": 21631
+        },
+        {
+          "q": 0.75,
+          "us": 24191
+        },
+        {
+          "q": 0.8,
+          "us": 24575
+        },
+        {
+          "q": 0.85,
+          "us": 25087
+        },
+        {
+          "q": 0.9,
+          "us": 25727
+        },
+        {
+          "q": 0.925,
+          "us": 25983
+        },
+        {
+          "q": 0.95,
+          "us": 26367
+        },
+        {
+          "q": 0.96,
+          "us": 26495
+        },
+        {
+          "q": 0.97,
+          "us": 26751
+        },
+        {
+          "q": 0.98,
+          "us": 27007
+        },
+        {
+          "q": 0.99,
+          "us": 27391
+        },
+        {
+          "q": 0.993,
+          "us": 27775
+        },
+        {
+          "q": 0.995,
+          "us": 27903
+        },
+        {
+          "q": 0.997,
+          "us": 28031
+        },
+        {
+          "q": 0.999,
+          "us": 29951
+        },
+        {
+          "q": 0.9995,
+          "us": 30975
+        },
+        {
+          "q": 0.9999,
+          "us": 30975
+        },
+        {
+          "q": 0.99999,
+          "us": 30975
+        },
+        {
+          "q": 1.0,
+          "us": 30975
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 18,
+          "failed": 0,
+          "p50": 21375,
+          "p95": 27903,
+          "p99": 27903,
+          "hist": [
+            20,
+            5,
+            21,
+            11,
+            22,
+            2
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 36,
+          "failed": 0,
+          "p50": 21375,
+          "p95": 27135,
+          "p99": 28287,
+          "hist": [
+            20,
+            6,
+            21,
+            21,
+            22,
+            9
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 60,
+          "failed": 0,
+          "p50": 22271,
+          "p95": 26751,
+          "p99": 27263,
+          "hist": [
+            20,
+            10,
+            21,
+            35,
+            22,
+            15
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 80,
+          "failed": 2,
+          "p50": 22015,
+          "p95": 26111,
+          "p99": 27007,
+          "hist": [
+            20,
+            15,
+            21,
+            53,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 102,
+          "failed": 0,
+          "p50": 20735,
+          "p95": 25599,
+          "p99": 26495,
+          "hist": [
+            20,
+            29,
+            21,
+            61,
+            22,
+            12
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 121,
+          "failed": 3,
+          "p50": 21631,
+          "p95": 26367,
+          "p99": 27263,
+          "hist": [
+            20,
+            27,
+            21,
+            72,
+            22,
+            25
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 137,
+          "failed": 0,
+          "p50": 21375,
+          "p95": 26239,
+          "p99": 27391,
+          "hist": [
+            20,
+            27,
+            21,
+            92,
+            22,
+            18
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 132,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 26239,
+          "p99": 27391,
+          "hist": [
+            20,
+            24,
+            21,
+            88,
+            22,
+            21
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 134,
+          "failed": 0,
+          "p50": 21247,
+          "p95": 26623,
+          "p99": 27647,
+          "hist": [
+            20,
+            38,
+            21,
+            76,
+            22,
+            20
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 128,
+          "failed": 2,
+          "p50": 21631,
+          "p95": 26623,
+          "p99": 28031,
+          "hist": [
+            20,
+            35,
+            21,
+            70,
+            22,
+            25
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 132,
+          "failed": 2,
+          "p50": 21887,
+          "p95": 26367,
+          "p99": 27519,
+          "hist": [
+            20,
+            31,
+            21,
+            77,
+            22,
+            26
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 135,
+          "failed": 1,
+          "p50": 21887,
+          "p95": 25983,
+          "p99": 27007,
+          "hist": [
+            20,
+            27,
+            21,
+            81,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 134,
+          "failed": 2,
+          "p50": 21375,
+          "p95": 26367,
+          "p99": 27519,
+          "hist": [
+            20,
+            35,
+            21,
+            80,
+            22,
+            21
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 132,
+          "failed": 1,
+          "p50": 22271,
+          "p95": 26367,
+          "p99": 26623,
+          "hist": [
+            20,
+            27,
+            21,
+            78,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 118,
+          "failed": 2,
+          "p50": 22399,
+          "p95": 26111,
+          "p99": 26623,
+          "hist": [
+            20,
+            22,
+            21,
+            70,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 71,
+          "failed": 1,
+          "p50": 20735,
+          "p95": 26367,
+          "p99": 27903,
+          "hist": [
+            20,
+            18,
+            21,
+            43,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 25,
+          "failed": 0,
+          "p50": 20351,
+          "p95": 27007,
+          "p99": 27775,
+          "hist": [
+            20,
+            5,
+            21,
+            16,
+            22,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-me",
+      "name": "Session",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": "g-assets",
+      "method": "GET",
+      "url": "{{baseUrl}}/me",
+      "totals": {
+        "total": 1712,
+        "ok": 1689,
+        "failed": 23,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 1689
+          },
+          {
+            "code": 500,
+            "count": 23
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 23
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 23,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 0,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [],
+      "latency": {
+        "min": 15808,
+        "mean": 21672,
+        "p50": 21759,
+        "p90": 25599,
+        "p95": 26239,
+        "p99": 27263,
+        "max": 33023,
+        "count": 1712
+      },
+      "latency_raw": {
+        "min": 15808,
+        "mean": 21672,
+        "p50": 21759,
+        "p90": 25599,
+        "p95": 26239,
+        "p99": 27263,
+        "max": 33023,
+        "count": 1712
+      },
+      "ttfb": {
+        "min": 15808,
+        "mean": 21670,
+        "p50": 21759,
+        "p90": 25599,
+        "p95": 26239,
+        "p99": 27263,
+        "max": 33023,
+        "count": 1712
+      },
+      "bytes": 29796,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 15808
+        },
+        {
+          "q": 0.1,
+          "us": 17791
+        },
+        {
+          "q": 0.25,
+          "us": 19327
+        },
+        {
+          "q": 0.5,
+          "us": 21759
+        },
+        {
+          "q": 0.75,
+          "us": 24063
+        },
+        {
+          "q": 0.8,
+          "us": 24575
+        },
+        {
+          "q": 0.85,
+          "us": 25087
+        },
+        {
+          "q": 0.9,
+          "us": 25599
+        },
+        {
+          "q": 0.925,
+          "us": 25855
+        },
+        {
+          "q": 0.95,
+          "us": 26239
+        },
+        {
+          "q": 0.96,
+          "us": 26367
+        },
+        {
+          "q": 0.97,
+          "us": 26623
+        },
+        {
+          "q": 0.98,
+          "us": 27007
+        },
+        {
+          "q": 0.99,
+          "us": 27263
+        },
+        {
+          "q": 0.993,
+          "us": 27391
+        },
+        {
+          "q": 0.995,
+          "us": 27519
+        },
+        {
+          "q": 0.997,
+          "us": 27519
+        },
+        {
+          "q": 0.999,
+          "us": 28159
+        },
+        {
+          "q": 0.9995,
+          "us": 33023
+        },
+        {
+          "q": 0.9999,
+          "us": 33023
+        },
+        {
+          "q": 0.99999,
+          "us": 33023
+        },
+        {
+          "q": 1.0,
+          "us": 33023
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 15,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 27647,
+          "p99": 27647,
+          "hist": [
+            20,
+            3,
+            21,
+            8,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 37,
+          "failed": 0,
+          "p50": 20479,
+          "p95": 27007,
+          "p99": 28159,
+          "hist": [
+            20,
+            8,
+            21,
+            21,
+            22,
+            8
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 60,
+          "failed": 0,
+          "p50": 21759,
+          "p95": 25599,
+          "p99": 27263,
+          "hist": [
+            20,
+            13,
+            21,
+            34,
+            22,
+            13
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 76,
+          "failed": 2,
+          "p50": 21247,
+          "p95": 25855,
+          "p99": 26367,
+          "hist": [
+            20,
+            17,
+            21,
+            48,
+            22,
+            13
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 102,
+          "failed": 0,
+          "p50": 21503,
+          "p95": 26367,
+          "p99": 27519,
+          "hist": [
+            20,
+            28,
+            21,
+            61,
+            22,
+            12,
+            23,
+            1
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 125,
+          "failed": 2,
+          "p50": 21119,
+          "p95": 26111,
+          "p99": 27263,
+          "hist": [
+            20,
+            33,
+            21,
+            72,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 132,
+          "failed": 4,
+          "p50": 21887,
+          "p95": 25983,
+          "p99": 26495,
+          "hist": [
+            20,
+            31,
+            21,
+            83,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 127,
+          "failed": 2,
+          "p50": 21375,
+          "p95": 26623,
+          "p99": 27007,
+          "hist": [
+            20,
+            29,
+            21,
+            75,
+            22,
+            25
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 136,
+          "failed": 2,
+          "p50": 21375,
+          "p95": 26111,
+          "p99": 27135,
+          "hist": [
+            20,
+            38,
+            21,
+            76,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 126,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 25983,
+          "p99": 26367,
+          "hist": [
+            20,
+            27,
+            21,
+            73,
+            22,
+            27
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 134,
+          "failed": 4,
+          "p50": 21887,
+          "p95": 26367,
+          "p99": 27263,
+          "hist": [
+            20,
+            26,
+            21,
+            84,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 133,
+          "failed": 1,
+          "p50": 21631,
+          "p95": 26495,
+          "p99": 27135,
+          "hist": [
+            20,
+            30,
+            21,
+            80,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 134,
+          "failed": 2,
+          "p50": 22399,
+          "p95": 25855,
+          "p99": 26879,
+          "hist": [
+            20,
+            20,
+            21,
+            93,
+            22,
+            23
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 135,
+          "failed": 0,
+          "p50": 22399,
+          "p95": 26367,
+          "p99": 27135,
+          "hist": [
+            20,
+            23,
+            21,
+            84,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 119,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 26239,
+          "p99": 27391,
+          "hist": [
+            20,
+            26,
+            21,
+            79,
+            22,
+            15
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 72,
+          "failed": 1,
+          "p50": 22015,
+          "p95": 27007,
+          "p99": 27391,
+          "hist": [
+            20,
+            14,
+            21,
+            44,
+            22,
+            15
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 26,
+          "failed": 0,
+          "p50": 21631,
+          "p95": 26367,
+          "p99": 27647,
+          "hist": [
+            20,
+            5,
+            21,
+            14,
+            22,
+            7
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-xml",
+      "name": "Order XML",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": "g-assets",
+      "method": "GET",
+      "url": "{{baseUrl}}/xml",
+      "totals": {
+        "total": 1712,
+        "ok": 1690,
+        "failed": 22,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 1690
+          },
+          {
+            "code": 500,
+            "count": 22
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 22
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 23,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 22,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [
+        {
+          "id": "x-oid",
+          "count": 22
+        }
+      ],
+      "latency": {
+        "min": 15616,
+        "mean": 21647,
+        "p50": 21631,
+        "p90": 25855,
+        "p95": 26495,
+        "p99": 27391,
+        "max": 28799,
+        "count": 1712
+      },
+      "latency_raw": {
+        "min": 15616,
+        "mean": 21647,
+        "p50": 21631,
+        "p90": 25855,
+        "p95": 26495,
+        "p99": 27391,
+        "max": 28799,
+        "count": 1712
+      },
+      "ttfb": {
+        "min": 15616,
+        "mean": 21644,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26495,
+        "p99": 27391,
+        "max": 28799,
+        "count": 1712
+      },
+      "bytes": 162460,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 15616
+        },
+        {
+          "q": 0.1,
+          "us": 17663
+        },
+        {
+          "q": 0.25,
+          "us": 19199
+        },
+        {
+          "q": 0.5,
+          "us": 21631
+        },
+        {
+          "q": 0.75,
+          "us": 24191
+        },
+        {
+          "q": 0.8,
+          "us": 24703
+        },
+        {
+          "q": 0.85,
+          "us": 25215
+        },
+        {
+          "q": 0.9,
+          "us": 25855
+        },
+        {
+          "q": 0.925,
+          "us": 26111
+        },
+        {
+          "q": 0.95,
+          "us": 26495
+        },
+        {
+          "q": 0.96,
+          "us": 26751
+        },
+        {
+          "q": 0.97,
+          "us": 26879
+        },
+        {
+          "q": 0.98,
+          "us": 27007
+        },
+        {
+          "q": 0.99,
+          "us": 27391
+        },
+        {
+          "q": 0.993,
+          "us": 27775
+        },
+        {
+          "q": 0.995,
+          "us": 27775
+        },
+        {
+          "q": 0.997,
+          "us": 27903
+        },
+        {
+          "q": 0.999,
+          "us": 28415
+        },
+        {
+          "q": 0.9995,
+          "us": 28799
+        },
+        {
+          "q": 0.9999,
+          "us": 28799
+        },
+        {
+          "q": 0.99999,
+          "us": 28799
+        },
+        {
+          "q": 1.0,
+          "us": 28799
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 16,
+          "failed": 0,
+          "p50": 20479,
+          "p95": 27647,
+          "p99": 27647,
+          "hist": [
+            20,
+            4,
+            21,
+            9,
+            22,
+            3
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 35,
+          "failed": 2,
+          "p50": 21887,
+          "p95": 27775,
+          "p99": 28159,
+          "hist": [
+            20,
+            6,
+            21,
+            20,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 59,
+          "failed": 1,
+          "p50": 21503,
+          "p95": 26623,
+          "p99": 27903,
+          "hist": [
+            20,
+            14,
+            21,
+            32,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 78,
+          "failed": 1,
+          "p50": 20735,
+          "p95": 25983,
+          "p99": 26367,
+          "hist": [
+            20,
+            24,
+            21,
+            44,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 97,
+          "failed": 4,
+          "p50": 21759,
+          "p95": 26367,
+          "p99": 27391,
+          "hist": [
+            20,
+            24,
+            21,
+            60,
+            22,
+            17
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 126,
+          "failed": 1,
+          "p50": 21503,
+          "p95": 26751,
+          "p99": 28031,
+          "hist": [
+            20,
+            29,
+            21,
+            70,
+            22,
+            28
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 134,
+          "failed": 2,
+          "p50": 20991,
+          "p95": 26623,
+          "p99": 27263,
+          "hist": [
+            20,
+            35,
+            21,
+            72,
+            22,
+            29
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 128,
+          "failed": 1,
+          "p50": 22399,
+          "p95": 26751,
+          "p99": 27007,
+          "hist": [
+            20,
+            25,
+            21,
+            74,
+            22,
+            30
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 137,
+          "failed": 1,
+          "p50": 21375,
+          "p95": 26367,
+          "p99": 27647,
+          "hist": [
+            20,
+            39,
+            21,
+            75,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 127,
+          "failed": 2,
+          "p50": 21503,
+          "p95": 26111,
+          "p99": 27903,
+          "hist": [
+            20,
+            35,
+            21,
+            71,
+            22,
+            23
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 134,
+          "failed": 2,
+          "p50": 22143,
+          "p95": 26495,
+          "p99": 27263,
+          "hist": [
+            20,
+            30,
+            21,
+            77,
+            22,
+            29
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 135,
+          "failed": 0,
+          "p50": 21503,
+          "p95": 26239,
+          "p99": 26879,
+          "hist": [
+            20,
+            24,
+            21,
+            88,
+            22,
+            23
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 134,
+          "failed": 2,
+          "p50": 21631,
+          "p95": 26111,
+          "p99": 27007,
+          "hist": [
+            20,
+            31,
+            21,
+            85,
+            22,
+            20
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 134,
+          "failed": 0,
+          "p50": 22015,
+          "p95": 26239,
+          "p99": 26879,
+          "hist": [
+            20,
+            27,
+            21,
+            85,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 118,
+          "failed": 2,
+          "p50": 21375,
+          "p95": 26495,
+          "p99": 27391,
+          "hist": [
+            20,
+            31,
+            21,
+            67,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 72,
+          "failed": 1,
+          "p50": 22143,
+          "p95": 27135,
+          "p99": 27519,
+          "hist": [
+            20,
+            15,
+            21,
+            44,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 26,
+          "failed": 0,
+          "p50": 22527,
+          "p95": 26879,
+          "p99": 27519,
+          "hist": [
+            20,
+            4,
+            21,
+            16,
+            22,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-cancel",
+      "name": "Cancel order",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": null,
+      "method": "DELETE",
+      "url": "{{baseUrl}}/echo?order={{firstOrder}}",
+      "totals": {
+        "total": 622,
+        "ok": 618,
+        "failed": 4,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 618
+          },
+          {
+            "code": 500,
+            "count": 4
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 4
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 23,
+        "not_taken": 1090,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 0,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [],
+      "latency": {
+        "min": 16000,
+        "mean": 21823,
+        "p50": 22143,
+        "p90": 25599,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 29823,
+        "count": 622
+      },
+      "latency_raw": {
+        "min": 16000,
+        "mean": 21823,
+        "p50": 22143,
+        "p90": 25599,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 29823,
+        "count": 622
+      },
+      "ttfb": {
+        "min": 16000,
+        "mean": 21820,
+        "p50": 22143,
+        "p90": 25599,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 29823,
+        "count": 622
+      },
+      "bytes": 105072,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 16000
+        },
+        {
+          "q": 0.1,
+          "us": 17663
+        },
+        {
+          "q": 0.25,
+          "us": 19455
+        },
+        {
+          "q": 0.5,
+          "us": 22143
+        },
+        {
+          "q": 0.75,
+          "us": 24191
+        },
+        {
+          "q": 0.8,
+          "us": 24575
+        },
+        {
+          "q": 0.85,
+          "us": 24959
+        },
+        {
+          "q": 0.9,
+          "us": 25599
+        },
+        {
+          "q": 0.925,
+          "us": 25855
+        },
+        {
+          "q": 0.95,
+          "us": 26367
+        },
+        {
+          "q": 0.96,
+          "us": 26495
+        },
+        {
+          "q": 0.97,
+          "us": 26751
+        },
+        {
+          "q": 0.98,
+          "us": 27135
+        },
+        {
+          "q": 0.99,
+          "us": 27519
+        },
+        {
+          "q": 0.993,
+          "us": 27775
+        },
+        {
+          "q": 0.995,
+          "us": 28031
+        },
+        {
+          "q": 0.997,
+          "us": 28799
+        },
+        {
+          "q": 0.999,
+          "us": 29823
+        },
+        {
+          "q": 0.9995,
+          "us": 29823
+        },
+        {
+          "q": 0.9999,
+          "us": 29823
+        },
+        {
+          "q": 0.99999,
+          "us": 29823
+        },
+        {
+          "q": 1.0,
+          "us": 29823
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 3,
+          "failed": 0,
+          "p50": 21375,
+          "p95": 25983,
+          "p99": 25983,
+          "hist": [
+            20,
+            1,
+            21,
+            1,
+            22,
+            1
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 11,
+          "failed": 0,
+          "p50": 23551,
+          "p95": 27135,
+          "p99": 27135,
+          "hist": [
+            20,
+            2,
+            21,
+            5,
+            22,
+            4
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 18,
+          "failed": 0,
+          "p50": 20863,
+          "p95": 25855,
+          "p99": 25855,
+          "hist": [
+            20,
+            5,
+            21,
+            12,
+            22,
+            1
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 30,
+          "failed": 1,
+          "p50": 21887,
+          "p95": 25727,
+          "p99": 25983,
+          "hist": [
+            20,
+            8,
+            21,
+            18,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 35,
+          "failed": 0,
+          "p50": 21759,
+          "p95": 26751,
+          "p99": 27775,
+          "hist": [
+            20,
+            7,
+            21,
+            22,
+            22,
+            6
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 38,
+          "failed": 0,
+          "p50": 23039,
+          "p95": 27263,
+          "p99": 29823,
+          "hist": [
+            20,
+            8,
+            21,
+            21,
+            22,
+            9
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 55,
+          "failed": 0,
+          "p50": 21503,
+          "p95": 27135,
+          "p99": 28799,
+          "hist": [
+            20,
+            15,
+            21,
+            30,
+            22,
+            10
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 52,
+          "failed": 0,
+          "p50": 21887,
+          "p95": 26623,
+          "p99": 28415,
+          "hist": [
+            20,
+            10,
+            21,
+            30,
+            22,
+            12
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 46,
+          "failed": 1,
+          "p50": 22015,
+          "p95": 26239,
+          "p99": 26751,
+          "hist": [
+            20,
+            15,
+            21,
+            25,
+            22,
+            7
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 52,
+          "failed": 1,
+          "p50": 22015,
+          "p95": 26495,
+          "p99": 27391,
+          "hist": [
+            20,
+            11,
+            21,
+            32,
+            22,
+            10
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 51,
+          "failed": 0,
+          "p50": 22655,
+          "p95": 26239,
+          "p99": 27519,
+          "hist": [
+            20,
+            11,
+            21,
+            29,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 50,
+          "failed": 0,
+          "p50": 22271,
+          "p95": 25727,
+          "p99": 25983,
+          "hist": [
+            20,
+            11,
+            21,
+            29,
+            22,
+            10
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 48,
+          "failed": 0,
+          "p50": 21887,
+          "p95": 25855,
+          "p99": 27263,
+          "hist": [
+            20,
+            11,
+            21,
+            28,
+            22,
+            9
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 45,
+          "failed": 1,
+          "p50": 21759,
+          "p95": 25087,
+          "p99": 26879,
+          "hist": [
+            20,
+            7,
+            21,
+            33,
+            22,
+            6
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 41,
+          "failed": 0,
+          "p50": 22783,
+          "p95": 25727,
+          "p99": 26367,
+          "hist": [
+            20,
+            8,
+            21,
+            29,
+            22,
+            4
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 30,
+          "failed": 0,
+          "p50": 22143,
+          "p95": 25599,
+          "p99": 26495,
+          "hist": [
+            20,
+            5,
+            21,
+            20,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 13,
+          "failed": 0,
+          "p50": 24575,
+          "p95": 27647,
+          "p99": 27647,
+          "hist": [
+            21,
+            6,
+            22,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-legacy",
+      "name": "Legacy lookup",
+      "phase": "main",
+      "scenario_id": "s-shop",
+      "group_id": null,
+      "method": "GET",
+      "url": "{{baseUrl}}/status/404",
+      "totals": {
+        "total": 1712,
+        "ok": 0,
+        "failed": 1712,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 404,
+            "count": 1695
+          },
+          {
+            "code": 500,
+            "count": 17
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 1712
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 23,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 0,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [],
+      "latency": {
+        "min": 15552,
+        "mean": 21623,
+        "p50": 21759,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 35327,
+        "count": 1712
+      },
+      "latency_raw": {
+        "min": 15552,
+        "mean": 21623,
+        "p50": 21759,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 35327,
+        "count": 1712
+      },
+      "ttfb": {
+        "min": 15552,
+        "mean": 21620,
+        "p50": 21759,
+        "p90": 25855,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 35327,
+        "count": 1712
+      },
+      "bytes": 170,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 15552
+        },
+        {
+          "q": 0.1,
+          "us": 17535
+        },
+        {
+          "q": 0.25,
+          "us": 19199
+        },
+        {
+          "q": 0.5,
+          "us": 21759
+        },
+        {
+          "q": 0.75,
+          "us": 24319
+        },
+        {
+          "q": 0.8,
+          "us": 24831
+        },
+        {
+          "q": 0.85,
+          "us": 25215
+        },
+        {
+          "q": 0.9,
+          "us": 25855
+        },
+        {
+          "q": 0.925,
+          "us": 26111
+        },
+        {
+          "q": 0.95,
+          "us": 26367
+        },
+        {
+          "q": 0.96,
+          "us": 26623
+        },
+        {
+          "q": 0.97,
+          "us": 26751
+        },
+        {
+          "q": 0.98,
+          "us": 27007
+        },
+        {
+          "q": 0.99,
+          "us": 27519
+        },
+        {
+          "q": 0.993,
+          "us": 27775
+        },
+        {
+          "q": 0.995,
+          "us": 28031
+        },
+        {
+          "q": 0.997,
+          "us": 28287
+        },
+        {
+          "q": 0.999,
+          "us": 30207
+        },
+        {
+          "q": 0.9995,
+          "us": 35327
+        },
+        {
+          "q": 0.9999,
+          "us": 35327
+        },
+        {
+          "q": 0.99999,
+          "us": 35327
+        },
+        {
+          "q": 1.0,
+          "us": 35327
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 0,
+          "failed": 11,
+          "p50": 23679,
+          "p95": 27519,
+          "p99": 27519,
+          "hist": [
+            20,
+            1,
+            21,
+            5,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 2,
+          "ok": 0,
+          "failed": 31,
+          "p50": 23423,
+          "p95": 28543,
+          "p99": 30207,
+          "hist": [
+            20,
+            8,
+            21,
+            13,
+            22,
+            10
+          ]
+        },
+        {
+          "t_s": 3,
+          "ok": 0,
+          "failed": 52,
+          "p50": 21631,
+          "p95": 26239,
+          "p99": 26495,
+          "hist": [
+            20,
+            12,
+            21,
+            32,
+            22,
+            8
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 0,
+          "failed": 79,
+          "p50": 21887,
+          "p95": 26879,
+          "p99": 35327,
+          "hist": [
+            20,
+            19,
+            21,
+            38,
+            22,
+            21,
+            23,
+            1
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 0,
+          "failed": 102,
+          "p50": 21887,
+          "p95": 27007,
+          "p99": 27263,
+          "hist": [
+            20,
+            25,
+            21,
+            54,
+            22,
+            23
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 0,
+          "failed": 112,
+          "p50": 21247,
+          "p95": 25855,
+          "p99": 26751,
+          "hist": [
+            20,
+            26,
+            21,
+            63,
+            22,
+            23
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 0,
+          "failed": 134,
+          "p50": 21631,
+          "p95": 26239,
+          "p99": 26879,
+          "hist": [
+            20,
+            36,
+            21,
+            71,
+            22,
+            27
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 0,
+          "failed": 138,
+          "p50": 20735,
+          "p95": 26239,
+          "p99": 27519,
+          "hist": [
+            20,
+            39,
+            21,
+            77,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 0,
+          "failed": 131,
+          "p50": 21759,
+          "p95": 26111,
+          "p99": 27135,
+          "hist": [
+            20,
+            31,
+            21,
+            74,
+            22,
+            26
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 0,
+          "failed": 132,
+          "p50": 21375,
+          "p95": 26623,
+          "p99": 27391,
+          "hist": [
+            20,
+            30,
+            21,
+            78,
+            22,
+            24
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 0,
+          "failed": 134,
+          "p50": 21887,
+          "p95": 26495,
+          "p99": 27519,
+          "hist": [
+            20,
+            31,
+            21,
+            70,
+            22,
+            33
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 0,
+          "failed": 135,
+          "p50": 21759,
+          "p95": 26751,
+          "p99": 27519,
+          "hist": [
+            20,
+            30,
+            21,
+            83,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 0,
+          "failed": 134,
+          "p50": 21375,
+          "p95": 25855,
+          "p99": 26623,
+          "hist": [
+            20,
+            37,
+            21,
+            75,
+            22,
+            22
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 0,
+          "failed": 142,
+          "p50": 22015,
+          "p95": 26111,
+          "p99": 26751,
+          "hist": [
+            20,
+            26,
+            21,
+            84,
+            22,
+            32
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 0,
+          "failed": 123,
+          "p50": 21887,
+          "p95": 25855,
+          "p99": 26751,
+          "hist": [
+            20,
+            25,
+            21,
+            81,
+            22,
+            17
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 0,
+          "failed": 81,
+          "p50": 21759,
+          "p95": 26239,
+          "p99": 27263,
+          "hist": [
+            20,
+            20,
+            21,
+            41,
+            22,
+            20
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 0,
+          "failed": 41,
+          "p50": 22783,
+          "p95": 27647,
+          "p99": 28287,
+          "hist": [
+            20,
+            10,
+            21,
+            16,
+            22,
+            13
+          ]
+        }
+      ]
+    },
+    {
+      "step_id": "r-page",
+      "name": "Catalog page",
+      "phase": "main",
+      "scenario_id": "s-browse",
+      "group_id": null,
+      "method": "GET",
+      "url": "{{baseUrl}}/echo?page={{$randomInt(1,50)}}",
+      "totals": {
+        "total": 619,
+        "ok": 613,
+        "failed": 6,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 613
+          },
+          {
+            "code": 500,
+            "count": 6
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 6
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 0,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 0,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [],
+      "latency": {
+        "min": 16768,
+        "mean": 22988,
+        "p50": 23039,
+        "p90": 27135,
+        "p95": 27647,
+        "p99": 29311,
+        "max": 33535,
+        "count": 619
+      },
+      "latency_raw": {
+        "min": 15808,
+        "mean": 21708,
+        "p50": 21887,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 31999,
+        "count": 619
+      },
+      "ttfb": {
+        "min": 15808,
+        "mean": 21705,
+        "p50": 21887,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 31999,
+        "count": 619
+      },
+      "bytes": 88208,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 16768
+        },
+        {
+          "q": 0.1,
+          "us": 18559
+        },
+        {
+          "q": 0.25,
+          "us": 20479
+        },
+        {
+          "q": 0.5,
+          "us": 23039
+        },
+        {
+          "q": 0.75,
+          "us": 25727
+        },
+        {
+          "q": 0.8,
+          "us": 26239
+        },
+        {
+          "q": 0.85,
+          "us": 26623
+        },
+        {
+          "q": 0.9,
+          "us": 27135
+        },
+        {
+          "q": 0.925,
+          "us": 27391
+        },
+        {
+          "q": 0.95,
+          "us": 27647
+        },
+        {
+          "q": 0.96,
+          "us": 27903
+        },
+        {
+          "q": 0.97,
+          "us": 28287
+        },
+        {
+          "q": 0.98,
+          "us": 29055
+        },
+        {
+          "q": 0.99,
+          "us": 29311
+        },
+        {
+          "q": 0.993,
+          "us": 30463
+        },
+        {
+          "q": 0.995,
+          "us": 31231
+        },
+        {
+          "q": 0.997,
+          "us": 32511
+        },
+        {
+          "q": 0.999,
+          "us": 33535
+        },
+        {
+          "q": 0.9995,
+          "us": 33535
+        },
+        {
+          "q": 0.9999,
+          "us": 33535
+        },
+        {
+          "q": 0.99999,
+          "us": 33535
+        },
+        {
+          "q": 1.0,
+          "us": 33535
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 0,
+          "failed": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "hist": []
+        },
+        {
+          "t_s": 2,
+          "ok": 0,
+          "failed": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "hist": []
+        },
+        {
+          "t_s": 3,
+          "ok": 48,
+          "failed": 1,
+          "p50": 22783,
+          "p95": 28799,
+          "p99": 29311,
+          "hist": [
+            20,
+            3,
+            21,
+            32,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 49,
+          "failed": 0,
+          "p50": 22911,
+          "p95": 27775,
+          "p99": 33535,
+          "hist": [
+            20,
+            6,
+            21,
+            24,
+            22,
+            18,
+            23,
+            1
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 46,
+          "failed": 0,
+          "p50": 23551,
+          "p95": 27519,
+          "p99": 28287,
+          "hist": [
+            20,
+            9,
+            21,
+            20,
+            22,
+            17
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 50,
+          "failed": 1,
+          "p50": 23039,
+          "p95": 27775,
+          "p99": 31999,
+          "hist": [
+            20,
+            4,
+            21,
+            28,
+            22,
+            19
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 44,
+          "failed": 0,
+          "p50": 22015,
+          "p95": 27135,
+          "p99": 27903,
+          "hist": [
+            20,
+            7,
+            21,
+            27,
+            22,
+            10
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 47,
+          "failed": 0,
+          "p50": 22783,
+          "p95": 27519,
+          "p99": 28671,
+          "hist": [
+            20,
+            9,
+            21,
+            27,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 40,
+          "failed": 0,
+          "p50": 23167,
+          "p95": 27391,
+          "p99": 29311,
+          "hist": [
+            20,
+            6,
+            21,
+            20,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 37,
+          "failed": 0,
+          "p50": 21759,
+          "p95": 27647,
+          "p99": 27647,
+          "hist": [
+            20,
+            6,
+            21,
+            20,
+            22,
+            11
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 40,
+          "failed": 0,
+          "p50": 23551,
+          "p95": 28159,
+          "p99": 30079,
+          "hist": [
+            21,
+            26,
+            22,
+            14
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 37,
+          "failed": 0,
+          "p50": 23679,
+          "p95": 28287,
+          "p99": 28671,
+          "hist": [
+            20,
+            5,
+            21,
+            20,
+            22,
+            12
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 47,
+          "failed": 0,
+          "p50": 22911,
+          "p95": 27263,
+          "p99": 29055,
+          "hist": [
+            20,
+            8,
+            21,
+            24,
+            22,
+            15
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 41,
+          "failed": 2,
+          "p50": 24063,
+          "p95": 27647,
+          "p99": 29055,
+          "hist": [
+            20,
+            9,
+            21,
+            17,
+            22,
+            17
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 41,
+          "failed": 2,
+          "p50": 23295,
+          "p95": 28287,
+          "p99": 32511,
+          "hist": [
+            20,
+            3,
+            21,
+            23,
+            22,
+            16,
+            23,
+            1
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 46,
+          "failed": 0,
+          "p50": 23295,
+          "p95": 27135,
+          "p99": 30463,
+          "hist": [
+            20,
+            6,
+            21,
+            23,
+            22,
+            17
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 0,
+          "failed": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "hist": []
+        }
+      ]
+    },
+    {
+      "step_id": "r-search",
+      "name": "Search",
+      "phase": "main",
+      "scenario_id": "s-browse",
+      "group_id": null,
+      "method": "GET",
+      "url": "{{baseUrl}}/echo?q={{$pick(toad,pond,lily)}}",
+      "totals": {
+        "total": 221,
+        "ok": 218,
+        "failed": 3,
+        "cancelled": 0,
+        "status_counts": [
+          {
+            "code": 200,
+            "count": 218
+          },
+          {
+            "code": 500,
+            "count": 3
+          }
+        ],
+        "error_counts": [
+          {
+            "kind": "status",
+            "count": 3
+          }
+        ]
+      },
+      "outcomes": {
+        "skipped": 0,
+        "not_taken": 0,
+        "blocked": 0,
+        "build_errors": 0,
+        "dropped": 0,
+        "check_failures": 0,
+        "extract_failures": 0,
+        "iterations": 0,
+        "iterations_failed": 0
+      },
+      "check_failures": [],
+      "extract_failures": [],
+      "latency": {
+        "min": 16192,
+        "mean": 23057,
+        "p50": 23295,
+        "p90": 27007,
+        "p95": 27647,
+        "p99": 28927,
+        "max": 29823,
+        "count": 221
+      },
+      "latency_raw": {
+        "min": 16000,
+        "mean": 21748,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27135,
+        "max": 27647,
+        "count": 221
+      },
+      "ttfb": {
+        "min": 16000,
+        "mean": 21744,
+        "p50": 21631,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27135,
+        "max": 27647,
+        "count": 221
+      },
+      "bytes": 31204,
+      "spectrum": [
+        {
+          "q": 0.0,
+          "us": 16192
+        },
+        {
+          "q": 0.1,
+          "us": 18943
+        },
+        {
+          "q": 0.25,
+          "us": 20607
+        },
+        {
+          "q": 0.5,
+          "us": 23295
+        },
+        {
+          "q": 0.75,
+          "us": 25727
+        },
+        {
+          "q": 0.8,
+          "us": 26111
+        },
+        {
+          "q": 0.85,
+          "us": 26495
+        },
+        {
+          "q": 0.9,
+          "us": 27007
+        },
+        {
+          "q": 0.925,
+          "us": 27263
+        },
+        {
+          "q": 0.95,
+          "us": 27647
+        },
+        {
+          "q": 0.96,
+          "us": 27903
+        },
+        {
+          "q": 0.97,
+          "us": 28159
+        },
+        {
+          "q": 0.98,
+          "us": 28287
+        },
+        {
+          "q": 0.99,
+          "us": 28927
+        },
+        {
+          "q": 0.993,
+          "us": 29055
+        },
+        {
+          "q": 0.995,
+          "us": 29055
+        },
+        {
+          "q": 0.997,
+          "us": 29823
+        },
+        {
+          "q": 0.999,
+          "us": 29823
+        },
+        {
+          "q": 0.9995,
+          "us": 29823
+        },
+        {
+          "q": 0.9999,
+          "us": 29823
+        },
+        {
+          "q": 0.99999,
+          "us": 29823
+        },
+        {
+          "q": 1.0,
+          "us": 29823
+        }
+      ],
+      "series": [
+        {
+          "t_s": 1,
+          "ok": 0,
+          "failed": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "hist": []
+        },
+        {
+          "t_s": 2,
+          "ok": 0,
+          "failed": 0,
+          "p50": 0,
+          "p95": 0,
+          "p99": 0,
+          "hist": []
+        },
+        {
+          "t_s": 3,
+          "ok": 10,
+          "failed": 0,
+          "p50": 21887,
+          "p95": 29823,
+          "p99": 29823,
+          "hist": [
+            20,
+            1,
+            21,
+            7,
+            22,
+            2
+          ]
+        },
+        {
+          "t_s": 4,
+          "ok": 11,
+          "failed": 0,
+          "p50": 23423,
+          "p95": 27263,
+          "p99": 27263,
+          "hist": [
+            20,
+            1,
+            21,
+            7,
+            22,
+            3
+          ]
+        },
+        {
+          "t_s": 5,
+          "ok": 14,
+          "failed": 0,
+          "p50": 22527,
+          "p95": 28287,
+          "p99": 28287,
+          "hist": [
+            20,
+            2,
+            21,
+            7,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 6,
+          "ok": 9,
+          "failed": 0,
+          "p50": 23551,
+          "p95": 27903,
+          "p99": 27903,
+          "hist": [
+            21,
+            5,
+            22,
+            4
+          ]
+        },
+        {
+          "t_s": 7,
+          "ok": 16,
+          "failed": 0,
+          "p50": 24703,
+          "p95": 27391,
+          "p99": 27391,
+          "hist": [
+            20,
+            1,
+            21,
+            7,
+            22,
+            8
+          ]
+        },
+        {
+          "t_s": 8,
+          "ok": 13,
+          "failed": 0,
+          "p50": 23167,
+          "p95": 29055,
+          "p99": 29055,
+          "hist": [
+            20,
+            1,
+            21,
+            7,
+            22,
+            5
+          ]
+        },
+        {
+          "t_s": 9,
+          "ok": 20,
+          "failed": 0,
+          "p50": 22527,
+          "p95": 26623,
+          "p99": 27007,
+          "hist": [
+            20,
+            4,
+            21,
+            12,
+            22,
+            4
+          ]
+        },
+        {
+          "t_s": 10,
+          "ok": 23,
+          "failed": 0,
+          "p50": 20863,
+          "p95": 27263,
+          "p99": 27263,
+          "hist": [
+            20,
+            3,
+            21,
+            14,
+            22,
+            6
+          ]
+        },
+        {
+          "t_s": 11,
+          "ok": 20,
+          "failed": 0,
+          "p50": 24575,
+          "p95": 28159,
+          "p99": 28927,
+          "hist": [
+            20,
+            1,
+            21,
+            10,
+            22,
+            9
+          ]
+        },
+        {
+          "t_s": 12,
+          "ok": 23,
+          "failed": 0,
+          "p50": 23679,
+          "p95": 26751,
+          "p99": 27007,
+          "hist": [
+            20,
+            2,
+            21,
+            14,
+            22,
+            7
+          ]
+        },
+        {
+          "t_s": 13,
+          "ok": 12,
+          "failed": 1,
+          "p50": 22783,
+          "p95": 28799,
+          "p99": 28799,
+          "hist": [
+            20,
+            2,
+            21,
+            8,
+            22,
+            3
+          ]
+        },
+        {
+          "t_s": 14,
+          "ok": 17,
+          "failed": 1,
+          "p50": 23295,
+          "p95": 27903,
+          "p99": 27903,
+          "hist": [
+            20,
+            3,
+            21,
+            8,
+            22,
+            7
+          ]
+        },
+        {
+          "t_s": 15,
+          "ok": 16,
+          "failed": 0,
+          "p50": 23423,
+          "p95": 26111,
+          "p99": 26111,
+          "hist": [
+            20,
+            2,
+            21,
+            8,
+            22,
+            6
+          ]
+        },
+        {
+          "t_s": 16,
+          "ok": 13,
+          "failed": 1,
+          "p50": 24191,
+          "p95": 27263,
+          "p99": 27263,
+          "hist": [
+            21,
+            7,
+            22,
+            7
+          ]
+        },
+        {
+          "t_s": 17,
+          "ok": 1,
+          "failed": 0,
+          "p50": 21887,
+          "p95": 21887,
+          "p99": 21887,
+          "hist": [
+            21,
+            1
+          ]
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "s-shop",
+      "name": "Shopper",
+      "iterations": 1735,
+      "iterations_failed": 1735,
+      "dropped": 0,
+      "peak_vus": 40,
+      "iteration_duration": {
+        "min": 17152,
+        "mean": 293912,
+        "p50": 296959,
+        "p90": 378879,
+        "p95": 389119,
+        "p99": 403455,
+        "max": 419839,
+        "count": 1735
+      },
+      "open_model": false,
+      "series": [
+        {
+          "t_s": 1,
+          "vus": 8,
+          "iterations": 13
+        },
+        {
+          "t_s": 2,
+          "vus": 14,
+          "iterations": 33
+        },
+        {
+          "t_s": 3,
+          "vus": 21,
+          "iterations": 53
+        },
+        {
+          "t_s": 4,
+          "vus": 27,
+          "iterations": 81
+        },
+        {
+          "t_s": 5,
+          "vus": 34,
+          "iterations": 103
+        },
+        {
+          "t_s": 6,
+          "vus": 40,
+          "iterations": 113
+        },
+        {
+          "t_s": 7,
+          "vus": 40,
+          "iterations": 135
+        },
+        {
+          "t_s": 8,
+          "vus": 40,
+          "iterations": 138
+        },
+        {
+          "t_s": 9,
+          "vus": 40,
+          "iterations": 132
+        },
+        {
+          "t_s": 10,
+          "vus": 40,
+          "iterations": 134
+        },
+        {
+          "t_s": 11,
+          "vus": 40,
+          "iterations": 135
+        },
+        {
+          "t_s": 12,
+          "vus": 40,
+          "iterations": 139
+        },
+        {
+          "t_s": 13,
+          "vus": 40,
+          "iterations": 137
+        },
+        {
+          "t_s": 14,
+          "vus": 40,
+          "iterations": 143
+        },
+        {
+          "t_s": 15,
+          "vus": 29,
+          "iterations": 124
+        },
+        {
+          "t_s": 16,
+          "vus": 17,
+          "iterations": 81
+        },
+        {
+          "t_s": 17,
+          "vus": 2,
+          "iterations": 41
+        }
+      ]
+    },
+    {
+      "id": "s-browse",
+      "name": "Browse",
+      "iterations": 840,
+      "iterations_failed": 9,
+      "dropped": 0,
+      "peak_vus": 2,
+      "iteration_duration": {
+        "min": 15808,
+        "mean": 21755,
+        "p50": 21759,
+        "p90": 25727,
+        "p95": 26367,
+        "p99": 27519,
+        "max": 31999,
+        "count": 840
+      },
+      "open_model": true,
+      "series": [
+        {
+          "t_s": 1,
+          "vus": 0,
+          "iterations": 0
+        },
+        {
+          "t_s": 2,
+          "vus": 1,
+          "iterations": 0
+        },
+        {
+          "t_s": 3,
+          "vus": 2,
+          "iterations": 59
+        },
+        {
+          "t_s": 4,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 5,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 6,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 7,
+          "vus": 1,
+          "iterations": 60
+        },
+        {
+          "t_s": 8,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 9,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 10,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 11,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 12,
+          "vus": 1,
+          "iterations": 60
+        },
+        {
+          "t_s": 13,
+          "vus": 2,
+          "iterations": 60
+        },
+        {
+          "t_s": 14,
+          "vus": 1,
+          "iterations": 61
+        },
+        {
+          "t_s": 15,
+          "vus": 1,
+          "iterations": 59
+        },
+        {
+          "t_s": 16,
+          "vus": 1,
+          "iterations": 60
+        },
+        {
+          "t_s": 17,
+          "vus": 0,
+          "iterations": 1
+        }
+      ]
+    }
+  ],
+  "verdict": [
+    {
+      "id": "t-p95",
+      "label": "p95 < 40 ms · List orders",
+      "observed": 26.367,
+      "passed": true,
+      "crossed_at_ms": null,
+      "pending": false
+    },
+    {
+      "id": "t-err",
+      "label": "error rate < 1% · Browse",
+      "observed": 1.0714285714285714,
+      "passed": false,
+      "crossed_at_ms": 3002,
+      "pending": false
+    },
+    {
+      "id": "t-p99",
+      "label": "p99 < 250 ms",
+      "observed": 27.599,
+      "passed": true,
+      "crossed_at_ms": null,
+      "pending": false
+    }
+  ],
+  "aborted_by": null,
+  "env": {
+    "toad_version": "0.1.0",
+    "os": "macos",
+    "cores": 12,
+    "environment": "local",
+    "proxied": false,
+    "data_files": [
+      {
+        "name": "users",
+        "rows": 8,
+        "hash": "497819a16da2580c"
+      }
+    ]
+  },
+  "samples": {
+    "count": 255,
+    "bytes": 17716,
+    "truncated": true,
+    "bodies": true
+  },
+  "legacy": false
 }

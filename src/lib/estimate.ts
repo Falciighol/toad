@@ -1,70 +1,79 @@
-// Pre-run estimates for the Load panel: how long a run lasts, how many requests it
-// sends, and at what rate. Mirrors toad-core's limiter (linear ramp, then flat).
-import type { LoadSpec } from "../bindings";
+// Pre-run estimates for the Load and Review stages: how long a run lasts, how many iterations
+// and requests it sends, at what peak rate. Closed-model numbers depend on the target's speed,
+// so they assume a response time and say so.
+import type { FlowItem, Scenario, TestConfig, ThinkTime } from "../bindings";
+import { itemSteps } from "./flow";
+import { area, duration, isOpen, maxVus, peak, points } from "./profile";
 
 /** Response time assumed for estimates that depend on the server's speed. */
 export const ASSUMED_LATENCY_MS = 50;
 
-export type RunEstimate = {
-  /** Run length in seconds (excluding the drain after stop). Exact for a duration stop. */
+export type ScenarioEstimate = {
+  id: string;
+  name: string;
   secs: number;
-  /** Total requests sent. Exact for a request-count stop. */
+  iterations: number;
   requests: number;
-  /** Steady-state rate: the cap, or what the workers reach at the assumed latency. */
-  rate: number;
-  capped: boolean;
-  /** Whether an estimate depends on the assumed latency (uncapped runs). */
+  /** Requests per iteration. */
+  perIteration: number;
+  peakRps: number;
+  peakVus: number;
+  /** The numbers depend on ASSUMED_LATENCY_MS. */
   latencyBound: boolean;
-  /** Workers needed to reach the cap at the assumed latency, when there are too few. */
-  workersNeeded: number | null;
+  /** Open model: VUs needed to keep up at the assumed latency, when max VUs is lower. */
+  vusNeeded: number | null;
 };
 
-const pos = (n: number | null | undefined): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+export type RunEstimate = { scenarios: ScenarioEstimate[]; secs: number; requests: number; peakRps: number; peakVus: number; latencyBound: boolean };
 
-/** Requests sent by time t when the rate climbs linearly from r0 to r over `ramp` seconds. */
-export function sentBy(t: number, r0: number, r: number, ramp: number): number {
-  if (ramp <= 0) return r * t;
-  if (t < ramp) return r0 * t + ((r - r0) * t * t) / (2 * ramp);
-  return (ramp * (r0 + r)) / 2 + (t - ramp) * r;
+const thinkMs = (t: ThinkTime | null | undefined) =>
+  !t ? 0 : t.kind === "fixed" ? t.ms : t.kind === "uniform" ? (t.min_ms + t.max_ms) / 2 : t.mean_ms;
+
+export function requestsPerIteration(sc: Scenario): number {
+  if (sc.kind === "mix") return 1;
+  return sc.steps.reduce((n, it) => n + itemSteps(it).length, 0);
 }
 
-/** Time at which the k-th request is sent (inverse of `sentBy`). */
-export function timeFor(k: number, r0: number, r: number, ramp: number): number {
-  if (ramp <= 0) return k / r;
-  const rampSlots = (ramp * (r0 + r)) / 2;
-  if (k >= rampSlots) return ramp + (k - rampSlots) / r;
-  const a = (r - r0) / (2 * ramp);
-  if (a <= 0) return k / r0;
-  return (-r0 + Math.sqrt(r0 * r0 + 4 * a * k)) / (2 * a);
+/** Expected time for one iteration at the assumed latency (parallel groups count once). */
+export function iterationMs(sc: Scenario): number {
+  const think = thinkMs(sc.think);
+  if (sc.kind === "mix") return ASSUMED_LATENCY_MS + think;
+  return sc.steps.reduce((ms, it: FlowItem) => {
+    if (it.kind === "pause") return ms + thinkMs(it.pause.think);
+    return ms + ASSUMED_LATENCY_MS + think;
+  }, 0) || ASSUMED_LATENCY_MS;
 }
 
-/** Returns null while a field the estimate needs is empty or invalid. */
-export function estimateRun(l: LoadSpec): RunEstimate | null {
-  if (!pos(l.concurrency)) return null;
-  const capped = l.rps_cap !== null;
-  if (capped && !pos(l.rps_cap)) return null;
-  const ramp = pos(l.ramp_up_secs) ? l.ramp_up_secs : 0;
-
-  // Closed loop: each worker completes one request per assumed latency.
-  const perWorker = 1000 / ASSUMED_LATENCY_MS;
-  const ceiling = l.concurrency * perWorker;
-  const rate = capped ? l.rps_cap! : ceiling;
-  // Capped: the schedule starts at 1 rps. Uncapped: workers start one by one from a single worker.
-  const r0 = capped ? Math.min(rate, 1) : l.concurrency > 1 ? perWorker : ceiling;
-  const workersNeeded = capped && rate > ceiling ? Math.ceil(rate / perWorker) : null;
-
-  let secs: number;
-  let requests: number;
-  if (l.stop.kind === "duration") {
-    if (!pos(l.stop.secs)) return null;
-    secs = l.stop.secs;
-    requests = Math.round(sentBy(secs, r0, rate, Math.min(ramp, secs)));
-  } else {
-    if (!pos(l.stop.count)) return null;
-    requests = l.stop.count;
-    secs = timeFor(requests, r0, rate, ramp);
+export function estimateScenario(sc: Scenario): ScenarioEstimate {
+  const e = sc.executor;
+  const per = Math.max(1, requestsPerIteration(sc));
+  const itMs = iterationMs(sc);
+  const base = { id: sc.id, name: sc.name, perIteration: per };
+  if (isOpen(e)) {
+    const iterations = Math.round(area(e));
+    const needed = Math.ceil((peak(e) * itMs) / 1000 * 1.2);
+    return { ...base, secs: duration(e), iterations, requests: iterations * per, peakRps: peak(e) * per, peakVus: maxVus(e), latencyBound: false, vusNeeded: needed > maxVus(e) ? needed : null };
   }
-  return { secs, requests, rate, capped, latencyBound: !capped, workersNeeded };
+  if (e.kind === "iterations") {
+    const secs = Math.min(e.max_duration_secs, (e.iterations * itMs) / 1000 / Math.max(1, e.vus));
+    return { ...base, secs, iterations: e.iterations, requests: e.iterations * per, peakRps: (e.vus * 1000 * per) / itMs, peakVus: e.vus, latencyBound: true, vusNeeded: null };
+  }
+  // Closed: VU-seconds over seconds per iteration.
+  const vuSeconds = points(e).reduce((a, p, i, arr) => (i ? a + ((p.v + arr[i - 1]!.v) / 2) * (p.t - arr[i - 1]!.t) : 0), 0);
+  const iterations = Math.round((vuSeconds * 1000) / itMs);
+  return { ...base, secs: duration(e), iterations, requests: iterations * per, peakRps: (maxVus(e) * 1000 * per) / itMs, peakVus: maxVus(e), latencyBound: true, vusNeeded: null };
+}
+
+export function estimateTest(c: TestConfig): RunEstimate {
+  const scenarios = c.scenarios.filter((s) => s.enabled).map(estimateScenario);
+  return {
+    scenarios,
+    secs: Math.max(0, ...c.scenarios.filter((s) => s.enabled).map((s, i) => s.start_offset_secs + (scenarios[i]?.secs ?? 0))),
+    requests: scenarios.reduce((n, s) => n + s.requests, 0),
+    peakRps: scenarios.reduce((n, s) => n + s.peakRps, 0),
+    peakVus: scenarios.reduce((n, s) => n + s.peakVus, 0),
+    latencyBound: scenarios.some((s) => s.latencyBound),
+  };
 }
 
 /** Describes a success range in status classes where it lines up, e.g. "2xx and 3xx". */

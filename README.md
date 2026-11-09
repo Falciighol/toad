@@ -70,42 +70,105 @@ rewrite it on startup).
 
 ## How it measures
 
-**Load model.** By default Toad uses a *closed model*: N workers each send a request,
-wait for the full response, and repeat. With an **RPS cap**, a shared lock-free
-scheduler hands every request a ticket with an *intended send time* (a GCRA /
-token bucket of size 1). Latency is then measured **from the scheduled time**, which
-corrects for coordinated omission: if the server stalls, the backlog shows up in the
-numbers instead of silently disappearing. Raw *service time* (actual send → last
-byte) is recorded alongside. Concurrency still caps in-flight requests, so a target
-that needs more workers than you configured produces a "concurrency too low" hint.
+**What runs.** A test holds one or more *scenarios*, and they run at the same time. A
+scenario is either a **flow** (each virtual user walks the steps in order, then starts
+again) or a **mix** (each iteration picks one step by weight). Around them, **setup**
+runs once before the test, **per-user init** runs once per virtual user before its first
+iteration (log in per user, for example), and **teardown** runs once at the end. Setup
+and teardown requests appear in the analysis but are not part of the run's totals or
+its verdict.
 
-- **Headline latency** is corrected latency when capped. Uncapped, the two are
-  identical, so a single "Latency" is shown.
-- **Latency** is send start → full body read. The body is always drained so
-  connections return to the pool. TTFB is recorded too. Transport errors (timeouts,
-  connect/DNS/TLS failures) are counted but not added to latency histograms;
-  responses with a non-success status are.
-- **Ramp-up** is linear over T seconds: workers start one by one from 1 to N
-  (uncapped), or the rate rises from 1 rps to the cap (capped). A request-count stop
-  includes ramp-up requests.
-- **Stop** (button, ⌘/Ctrl+., or Esc when no input or dialog has focus) halts
-  scheduling, waits up to 2 s for in-flight requests, then aborts the rest. Aborted
-  requests are counted as *cancelled*, not errors, and partial results are kept. A
-  duration or request-count run ends the same way.
-- **Errors** are classified as timeout, connect, DNS, TLS, body read, redirect
-  (more than 5 hops, or to an unconfirmed host), non-success status (broken down by
-  code), or other. Success is a configurable status range (default 200–399).
-- **Metrics.** Workers record into lock-striped shards (HDR histograms in µs with 3
-  significant figures, plus counters). There are 4 shards per CPU core, so the lock
-  is effectively private to a worker. Shards are striped rather than one per worker
-  because three 1-hour-range histograms per worker would cost hundreds of MB at
-  1000 workers. An aggregator drains the shards every 250 ms, merges them into
-  interval, per-second and cumulative views, and emits one `run://snapshot` event
-  (about 1 KB). The per-second series is saved with the run.
-- **Bottleneck warning.** Shown when achieved RPS stays under 90% of target for 3 s
-  while service time stays flat and concurrency would suffice. It is also shown when
-  the OS runs out of file descriptors, or when Toad's own scheduler lags by more
-  than 50 ms.
+**Load model.** Each scenario chooses how its load is generated, and the Load stage
+draws it as a profile over time:
+
+- **Virtual users** (closed model). N virtual users each run an iteration, wait for
+  every response, then run the next. The value is constant or follows linear stages
+  (ramp up, hold, ramp down). If the target slows down, the request rate drops with it.
+- **Arrival rate** (open model). Iterations start on a schedule, constant or staged,
+  whatever the target's speed. A shared lock-free scheduler (GCRA, a token bucket of
+  size 1) gives every iteration an *intended start time*. The first request of the
+  iteration is measured **from that scheduled time**, which corrects for coordinated
+  omission: if the server stalls, the backlog shows up in the numbers instead of
+  silently disappearing. Later steps in the iteration are measured from their own send.
+  Each iteration needs a free virtual user, up to the scenario's *max VUs*. When none
+  is free, the iteration is **dropped**, counted, and reported with a warning. It is not
+  queued. If max VUs can't reach the rate at the current service time, Toad shows a
+  "concurrency too low" hint with the number it would need.
+- **Fixed iterations.** N virtual users share a fixed number of iterations, with a time
+  limit.
+
+Scenarios can start at an offset. When a scenario ends, its in-flight iterations get
+the scenario's *graceful stop* period, and then whatever is still running is cancelled.
+
+**Latency.**
+
+- **Latency** is send start → full body read, or scheduled start → full body read for
+  the first request of an open-model iteration. Raw *service time* (actual send → last
+  byte) and TTFB are recorded alongside. Where the two latencies differ, the run labels
+  which one a number shows ("from scheduled start").
+- The body is always drained, so connections return to the pool. Transport errors
+  (timeouts, connect/DNS/TLS failures) are counted but not added to latency histograms.
+  Responses with a non-success status are added.
+- **Think time** (a fixed, uniform or normally distributed pause after each step) is
+  not counted in any latency.
+
+**What counts as a failure.** Success is the test's status range (default 200–399). A **check** (status, body, JSONPath, XPath, header or latency assertion)
+either fails the request or is counted only as a check failure. Each check chooses
+which. Errors are classified as timeout, connect, DNS, TLS, body read, redirect (over
+the hop limit, or to an unconfirmed host), non-success status (by code), failed
+check, or other. Some requests are never sent, and are counted separately rather than
+as errors:
+
+- **Skipped:** a value the request needs is missing, because an earlier extraction
+  failed.
+- **Not taken:** its *Run if* rule was false. This is a normal path.
+- **Blocked:** its host isn't loopback and wasn't confirmed.
+- **Cancelled:** it was still in flight when the run stopped.
+
+**Values between steps.** Steps **extract** values from responses with JSONPath,
+XPath, a header, a regex or a cookie. Later steps use them as `{{name}}`, alongside
+environment variables, data-file columns (`{{users.email}}`), built-ins (`vu.id`,
+`iteration`) and generators (`{{$uuid}}`). Templates are parsed once per run.
+Rendering one with no placeholders is a copy. Each virtual user gets its own **cookie
+jar** by default. Redirects are followed manually, so cookies and host checks apply on
+every hop.
+
+**Verdict.** **Thresholds** (p50/p90/p95/p99/max, error rate, check pass rate, RPS or
+dropped iterations, for the whole test, one scenario or one step) decide pass or fail.
+A threshold can abort the run the moment it is crossed, after an optional delay. The
+**warm-up** seconds are excluded from the verdict but still shown in every chart, and
+marked as excluded.
+
+**Metrics.**
+
+- **Collection.** Virtual users record into lock-striped shards, 4 per CPU core,
+  picked by user id, so a shard's lock is effectively private. Whole-run histograms
+  are HDR in µs with 3 significant figures. Each request step also gets a smaller
+  histogram set (2 significant figures, ±1%), so per-endpoint numbers don't multiply
+  memory: a 20-step test costs about 30 MB instead of about 500 MB.
+- **Aggregation.** An aggregator merges the shards every 250 ms into interval,
+  per-second, cumulative and verdict views, and emits one `run://snapshot` event.
+- **Saved with the run.** A per-second series, per scenario and per endpoint, is
+  saved with the run. In the Timeline, brushing a time window merges per-second log
+  buckets (×1.3 apart) to estimate that window's percentiles, accurate to about ±15%,
+  and the UI says so.
+
+**Samples.** For the analysis, a run keeps real requests and responses per endpoint:
+every failure (up to 200 per error kind), the 50 slowest, and a uniform random 100.
+Bodies are capped at 64 KB each and 50 MB per run. All of these limits are in
+Settings. Toad decides whether to keep a request when its response headers arrive, so
+bodies are only buffered when they might be kept. Each sample records the virtual
+user, iteration and time, and the values the iteration had extracted so far.
+
+**Toad's own limits.** The **bottleneck warning** appears when achieved RPS stays
+under 90% of target for 3 s while service time stays flat and max VUs would suffice.
+This check applies to open-model scenarios of single-request iterations. Toad also
+warns when the OS runs out of file descriptors, when its own scheduler lags by more
+than 50 ms, and when a data file runs out of rows.
+
+**Stop** (button, ⌘/Ctrl+., or Esc when no input or dialog has focus) halts new
+iterations, waits up to 2 s for in-flight requests, then cancels the rest. Partial
+results are kept.
 
 ## OS limits
 
@@ -157,8 +220,15 @@ cache) and `settings.json`. Toad keeps the last 100 runs by default.
 | ⌘/Ctrl + . | Stop |
 | Esc | Stop, when no input or dialog has focus |
 
-## Non-goals (v1)
+## Non-goals
 
-Cloud sync, accounts, distributed load, a scripting DSL, auth flows beyond static
-headers and bearer tokens, keychain storage, code signing and notarization,
-auto-update, HTTP/3, WebSocket and gRPC.
+Cloud sync, accounts, distributed load (one machine generates all of it), keychain
+storage, code signing and notarization, auto-update, HTTP/3, WebSocket and gRPC.
+
+There is also no general-purpose scripting language. Chaining is declarative:
+extractions, templates, checks and *Run if* rules cover login flows, per-user data and
+conditional steps, but there are no loops and no user code. Import is from cURL only.
+There are no HAR, Postman or OpenAPI importers.
+
+(v1 also ruled out auth flows beyond static headers and bearer tokens. v2 lifts that
+with step chaining, per-user init and cookie jars.)

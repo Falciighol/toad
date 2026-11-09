@@ -88,8 +88,58 @@ export function Compare({ a, b, onClose }: { a: RunSummary; b: RunSummary; onClo
           </tbody>
         </table>
       </div>
+      <EndpointDeltas a={a} b={b} />
       <CompareChart title="Throughput (requests / s)" data={rps} labelA="A" labelB="B" unit="rps" />
       <CompareChart title="Latency p99, ms" data={p99} labelA="A" labelB="B" unit="ms" slot={1} />
+    </div>
+  );
+}
+
+/** Per-endpoint deltas, matched by step id. Steps only one run has are listed, not dropped. */
+function EndpointDeltas({ a, b }: { a: RunSummary; b: RunSummary }) {
+  const ea = (a.endpoints ?? []).filter((e) => e.phase === "main");
+  const eb = (b.endpoints ?? []).filter((e) => e.phase === "main");
+  if (!ea.length && !eb.length) return null;
+  const ids = [...new Set([...ea.map((e) => e.step_id), ...eb.map((e) => e.step_id)])];
+  const err = (e: { totals: { total: number; failed: number } }) => (e.totals.total ? (e.totals.failed / e.totals.total) * 100 : 0);
+  const cell = (x: number, y: number, fmt: (n: number) => string) => {
+    const tone = x === y ? "text-text3" : y < x ? "text-success" : "text-danger";
+    return <span className={tone}>{fmtDelta(x, y, fmt)}</span>;
+  };
+  return (
+    <div className="card overflow-x-auto">
+      <table className="tabular w-full text-body">
+        <thead>
+          <tr className="border-b border-line text-small text-text3">
+            <th className="px-4 py-2 text-left font-medium">Endpoint</th>
+            <th className="px-2 py-2 text-right font-medium">p95 (B − A)</th>
+            <th className="px-2 py-2 text-right font-medium">p99 (B − A)</th>
+            <th className="px-4 py-2 text-right font-medium">Errors (B − A)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ids.map((id) => {
+            const x = ea.find((e) => e.step_id === id);
+            const y = eb.find((e) => e.step_id === id);
+            return (
+              <tr key={id} className="border-b border-line last:border-0">
+                <td className="px-4 py-2 text-text2">{(y ?? x)!.name}</td>
+                {x && y ? (
+                  <>
+                    <td className="px-2 py-2 text-right font-mono text-small">{cell(x.latency.p95, y.latency.p95, fmtLatency)}</td>
+                    <td className="px-2 py-2 text-right font-mono text-small">{cell(x.latency.p99, y.latency.p99, fmtLatency)}</td>
+                    <td className="px-4 py-2 text-right font-mono text-small">{cell(err(x), err(y), (n) => `${n.toFixed(2)}%`)}</td>
+                  </>
+                ) : (
+                  <td colSpan={3} className="px-4 py-2 text-right text-small text-text4">
+                    Only in run {x ? "A" : "B"}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

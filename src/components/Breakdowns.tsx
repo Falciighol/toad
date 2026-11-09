@@ -2,7 +2,7 @@ import type { ErrorCount, ErrorKind, StatusCount, Warning } from "../bindings";
 import { fmtInt, fmtPct } from "../lib/format";
 import { CardTitle, Icon } from "./ui";
 
-const ERROR_LABEL: Record<ErrorKind, string> = {
+export const ERROR_LABEL: Record<ErrorKind, string> = {
   timeout: "Timeout",
   connect: "Connect",
   dns: "DNS",
@@ -10,6 +10,7 @@ const ERROR_LABEL: Record<ErrorKind, string> = {
   body_read: "Body read",
   status: "Non-success status",
   redirect: "Redirect",
+  check: "Failed check or extraction",
   other: "Other",
 };
 
@@ -89,8 +90,20 @@ export function warningText(w: Warning): { title: string; body: string; toadIssu
       };
     case "concurrency_too_low":
       return {
-        title: "Concurrency too low for the RPS target",
-        body: `At the current latency the target needs about ${fmtInt(w.needed)} workers. Raise concurrency to reach it.`,
+        title: "Too few virtual users for the arrival rate",
+        body: `At the current latency the rate needs about ${fmtInt(w.needed)} virtual users. Raise Max virtual users to reach it; until then iterations wait, which shows in corrected latency.`,
+        toadIssue: false,
+      };
+    case "dropped_iterations":
+      return {
+        title: `${fmtInt(w.count)} iterations never started in ${w.scenario}`,
+        body: "Every virtual user was busy when they came due, and the scenario ended before one was free. Raise Max virtual users, or treat it as the target's limit.",
+        toadIssue: false,
+      };
+    case "data_exhausted":
+      return {
+        title: `Data file ${w.file} ran out of rows`,
+        body: "Its setting stopped virtual users (or the run) when the rows were used up. Add rows, or let it start over from the first row.",
         toadIssue: false,
       };
   }
@@ -103,7 +116,7 @@ export function Warnings({ warnings }: { warnings: Warning[] }) {
       {warnings.map((w) => {
         const t = warningText(w);
         return (
-          <div key={w.kind} className="flex gap-2.5 rounded-xl bg-warning-soft px-4 py-3">
+          <div key={`${w.kind}-${JSON.stringify(w)}`} className="flex gap-2.5 rounded-xl bg-warning-soft px-4 py-3">
             <Icon name="alert" className="mt-px size-4 text-warning" />
             <div>
               <div className="text-body font-semibold text-warning">{t.title}</div>

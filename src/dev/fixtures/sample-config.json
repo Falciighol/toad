@@ -1,6 +1,466 @@
 {
-  "id": "sample", "name": "Mock API · 200 workers", "created_at": 0, "updated_at": 0,
-  "request": { "method": "GET", "url": "http://127.0.0.1:8787/api/items", "headers": [{ "name": "Accept", "value": "application/json", "enabled": true }], "body": null, "bearer": null },
-  "load": { "concurrency": 200, "stop": { "kind": "duration", "secs": 20 }, "rps_cap": null, "ramp_up_secs": 5,
-            "timeout_ms": 10000, "success_range": { "min": 200, "max": 399 }, "follow_redirects": true, "allow_invalid_certs": false }
+ "version": 2,
+ "id": "sample",
+ "name": "Shop API \u00b7 checkout flow",
+ "created_at": 1788000000000,
+ "updated_at": 1788700000000,
+ "defaults": {
+  "base_url": "",
+  "headers": [
+   {
+    "name": "Accept",
+    "value": "application/json",
+    "enabled": true
+   }
+  ],
+  "auth": {
+   "kind": "none"
+  },
+  "user_agent": "",
+  "timeout_ms": 5000,
+  "success_range": {
+   "min": 200,
+   "max": 399
+  },
+  "follow_redirects": true,
+  "max_redirects": 5,
+  "max_response_kb": 1024
+ },
+ "environments": [
+  {
+   "id": "e-local",
+   "name": "local"
+  },
+  {
+   "id": "e-stage",
+   "name": "staging"
+  }
+ ],
+ "active_env": "e-local",
+ "variables": [
+  {
+   "name": "baseUrl",
+   "secret": false,
+   "values": {
+    "e-local": "http://127.0.0.1:8787",
+    "e-stage": "https://staging.shop.test"
+   }
+  },
+  {
+   "name": "apiKey",
+   "secret": true,
+   "values": {
+    "e-local": "local-dev-key",
+    "e-stage": ""
+   }
+  }
+ ],
+ "data": [
+  {
+   "id": "d-users",
+   "name": "users",
+   "file": "users.csv",
+   "original_name": "users.csv",
+   "format": "csv",
+   "has_header": true,
+   "columns": [
+    "name",
+    "plan"
+   ],
+   "secret_columns": [],
+   "rows": 8,
+   "distribution": "sequential",
+   "on_exhausted": "wrap"
+  }
+ ],
+ "cookies": {
+  "mode": "per_vu",
+  "clear_each_iteration": false,
+  "seed": []
+ },
+ "connection": {
+  "keep_alive": true,
+  "pool": "shared",
+  "http": "auto",
+  "allow_invalid_certs": false,
+  "host_overrides": [],
+  "client_certs": [],
+  "proxy": {
+   "enabled": false,
+   "kind": "http",
+   "address": "",
+   "username": "",
+   "password": "",
+   "no_proxy": ""
+  }
+ },
+ "setup": [],
+ "teardown": [],
+ "scenarios": [
+  {
+   "id": "s-shop",
+   "name": "Shopper",
+   "kind": "flow",
+   "enabled": true,
+   "init": [],
+   "steps": [
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-login",
+      "name": "Log in",
+      "method": "POST",
+      "url": "{{baseUrl}}/login",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": {
+       "kind": "json",
+       "content": "{\n  \"user\": \"{{users.name}}\"\n}",
+       "fields": [],
+       "variables": "",
+       "file": null,
+       "content_type": "",
+       "gzip": false
+      },
+      "auth": {
+       "kind": "inherit"
+      },
+      "values": [],
+      "extract": [
+       {
+        "id": "x-tok",
+        "var": "token",
+        "source": "json",
+        "expr": "$.token",
+        "pick": "first",
+        "index": 0,
+        "default": "",
+        "on_missing": "skip_iteration",
+        "secret": true,
+        "enabled": true
+       }
+      ],
+      "checks": [],
+      "run_if": null,
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 1
+     }
+    },
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-orders",
+      "name": "List orders",
+      "method": "GET",
+      "url": "{{baseUrl}}/orders",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": null,
+      "auth": {
+       "kind": "bearer",
+       "token": "{{token}}"
+      },
+      "values": [],
+      "extract": [
+       {
+        "id": "x-first",
+        "var": "firstOrder",
+        "source": "json",
+        "expr": "$.orders[0].id",
+        "pick": "first",
+        "index": 0,
+        "default": "",
+        "on_missing": "use_default",
+        "secret": false,
+        "enabled": true
+       }
+      ],
+      "checks": [
+       {
+        "id": "c-count",
+        "kind": "json",
+        "expr": "$.count",
+        "op": "equals",
+        "value": "2",
+        "fails_request": true,
+        "enabled": true
+       }
+      ],
+      "run_if": null,
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 1
+     }
+    },
+    {
+     "kind": "group",
+     "group": {
+      "id": "g-assets",
+      "name": "Profile page",
+      "run_if": null,
+      "steps": [
+       {
+        "id": "r-me",
+        "name": "Session",
+        "method": "GET",
+        "url": "{{baseUrl}}/me",
+        "params": [],
+        "headers": [],
+        "cookies": [],
+        "cookie_mode": "jar",
+        "body": null,
+        "auth": {
+         "kind": "inherit"
+        },
+        "values": [],
+        "extract": [],
+        "checks": [],
+        "run_if": null,
+        "timeout_ms": null,
+        "follow_redirects": null,
+        "max_response_kb": null,
+        "weight": 1
+       },
+       {
+        "id": "r-xml",
+        "name": "Order XML",
+        "method": "GET",
+        "url": "{{baseUrl}}/xml",
+        "params": [],
+        "headers": [],
+        "cookies": [],
+        "cookie_mode": "jar",
+        "body": null,
+        "auth": {
+         "kind": "inherit"
+        },
+        "values": [],
+        "extract": [
+         {
+          "id": "x-oid",
+          "var": "orderXml",
+          "source": "xpath",
+          "expr": "/order/@id",
+          "pick": "first",
+          "index": 0,
+          "default": "",
+          "on_missing": "use_default",
+          "secret": false,
+          "enabled": true
+         }
+        ],
+        "checks": [],
+        "run_if": null,
+        "timeout_ms": null,
+        "follow_redirects": null,
+        "max_response_kb": null,
+        "weight": 1
+       }
+      ]
+     }
+    },
+    {
+     "kind": "pause",
+     "pause": {
+      "id": "p-think",
+      "think": {
+       "kind": "uniform",
+       "min_ms": 100,
+       "max_ms": 300
+      },
+      "run_if": null
+     }
+    },
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-cancel",
+      "name": "Cancel order",
+      "method": "DELETE",
+      "url": "{{baseUrl}}/echo?order={{firstOrder}}",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": null,
+      "auth": {
+       "kind": "inherit"
+      },
+      "values": [],
+      "extract": [],
+      "checks": [],
+      "run_if": {
+       "mode": "all",
+       "clauses": [
+        {
+         "subject": "variable",
+         "name": "users.plan",
+         "op": "equals",
+         "value": "pro"
+        }
+       ]
+      },
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 1
+     }
+    },
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-legacy",
+      "name": "Legacy lookup",
+      "method": "GET",
+      "url": "{{baseUrl}}/status/404",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": null,
+      "auth": {
+       "kind": "inherit"
+      },
+      "values": [],
+      "extract": [],
+      "checks": [],
+      "run_if": null,
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 1
+     }
+    }
+   ],
+   "executor": {
+    "kind": "ramping_vus",
+    "start": 1,
+    "stages": [
+     {
+      "duration_secs": 6,
+      "target": 40
+     },
+     {
+      "duration_secs": 8,
+      "target": 40
+     },
+     {
+      "duration_secs": 3,
+      "target": 0
+     }
+    ]
+   },
+   "start_offset_secs": 0,
+   "graceful_stop_secs": 2,
+   "think": null
+  },
+  {
+   "id": "s-browse",
+   "name": "Browse",
+   "kind": "mix",
+   "enabled": true,
+   "init": [],
+   "steps": [
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-page",
+      "name": "Catalog page",
+      "method": "GET",
+      "url": "{{baseUrl}}/echo?page={{$randomInt(1,50)}}",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": null,
+      "auth": {
+       "kind": "inherit"
+      },
+      "values": [],
+      "extract": [],
+      "checks": [],
+      "run_if": null,
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 3
+     }
+    },
+    {
+     "kind": "request",
+     "step": {
+      "id": "r-search",
+      "name": "Search",
+      "method": "GET",
+      "url": "{{baseUrl}}/echo?q={{$pick(toad,pond,lily)}}",
+      "params": [],
+      "headers": [],
+      "cookies": [],
+      "cookie_mode": "jar",
+      "body": null,
+      "auth": {
+       "kind": "inherit"
+      },
+      "values": [],
+      "extract": [],
+      "checks": [],
+      "run_if": null,
+      "timeout_ms": null,
+      "follow_redirects": null,
+      "max_response_kb": null,
+      "weight": 1
+     }
+    }
+   ],
+   "executor": {
+    "kind": "rate",
+    "rate": 60,
+    "duration_secs": 14,
+    "max_vus": 20
+   },
+   "start_offset_secs": 2,
+   "graceful_stop_secs": 2,
+   "think": null
+  }
+ ],
+ "thresholds": [
+  {
+   "id": "t-p95",
+   "metric": "p95",
+   "scope": "step:r-orders",
+   "op": "lt",
+   "value": 40,
+   "abort": false,
+   "delay_secs": 0,
+   "enabled": true
+  },
+  {
+   "id": "t-err",
+   "metric": "error_rate",
+   "scope": "scenario:s-browse",
+   "op": "lt",
+   "value": 1,
+   "abort": false,
+   "delay_secs": 0,
+   "enabled": true
+  },
+  {
+   "id": "t-p99",
+   "metric": "p99",
+   "scope": "",
+   "op": "lt",
+   "value": 250,
+   "abort": false,
+   "delay_secs": 0,
+   "enabled": true
+  }
+ ],
+ "warmup_secs": 2
 }
